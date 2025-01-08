@@ -1,0 +1,11 @@
+[package]
+name = "sais_drum"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bitvec = "1"
+num-traits = "0.2.19"
+
+[dev-dependencies]
+proptest = "1.6.0"
