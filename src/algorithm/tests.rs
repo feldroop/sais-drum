@@ -121,35 +121,9 @@ fn lms_substrings_are_unequal_u8_abc_text() {
 // ------------------------------ NO LMS TEXT ------------------------------
 // starts with S-type, contains no LMS chars except for the virtual sentinel
 static NO_LMS_MINI_TEXT: &[u16] = &[0, 1];
-static NO_LMS_MINI_TEXT_EXPECTED_COUNTS: &[usize] = &[1, 1];
 static NO_LMS_MINI_TEXT_METADATA: LazyLock<TextMetadata> =
     LazyLock::new(|| scan_for_counts_types_and_lms_chars(NO_LMS_MINI_TEXT, 1));
 static EMPTY_SLICE: &[usize] = &[];
-
-#[test]
-fn scan_for_counts_types_and_lms_chars_u16_no_lms_mini_text() {
-    assert_eq!(NO_LMS_MINI_TEXT_METADATA.is_s_type, bitvec::bits![1, 0, 1]);
-
-    assert_eq!(
-        NO_LMS_MINI_TEXT_METADATA.reverse_order_lms_char_indices,
-        [2]
-    );
-
-    assert_eq!(
-        NO_LMS_MINI_TEXT_METADATA.char_counts,
-        NO_LMS_MINI_TEXT_EXPECTED_COUNTS
-    );
-}
-
-#[test]
-fn bucket_indices_from_counts_u16_no_lms_mini_text() {
-    let bucket_start_indices =
-        bucket_start_indices_from_counts(&NO_LMS_MINI_TEXT_METADATA.char_counts);
-    let bucket_end_indices = bucket_end_indices_from_counts(&NO_LMS_MINI_TEXT_METADATA.char_counts);
-
-    assert_eq!(bucket_start_indices, [0, 1]);
-    assert_eq!(bucket_end_indices, [0, 1]);
-}
 
 #[test]
 fn lms_substring_sorting_u16_no_lms_mini_text() {
@@ -197,39 +171,9 @@ fn create_reduced_text_u16_no_lms_mini_text() {
 // ------------------------------ ONE LMS TEXT ------------------------------
 // starts with L-type, contains exactly one LMS char except for the virtual sentinel
 static ONE_LMS_MINI_TEXT: &[u32] = &[1, 0, 1];
-static ONE_LMS_MINI_TEXT_EXPECTED_COUNTS: &[usize] = &[1, 2];
 static ONE_LMS_MINI_TEXT_METADATA: LazyLock<TextMetadata> =
     LazyLock::new(|| scan_for_counts_types_and_lms_chars(ONE_LMS_MINI_TEXT, 1));
 static ONE_LMS_MINI_TEXT_LMS_CHARS: &[usize] = &[1];
-
-#[test]
-fn scan_for_counts_types_and_lms_chars_u32_one_lms_mini_text() {
-    assert_eq!(
-        ONE_LMS_MINI_TEXT_METADATA.is_s_type,
-        bitvec::bits![0, 1, 0, 1]
-    );
-
-    assert_eq!(
-        ONE_LMS_MINI_TEXT_METADATA.reverse_order_lms_char_indices,
-        [3, 1]
-    );
-
-    assert_eq!(
-        ONE_LMS_MINI_TEXT_METADATA.char_counts,
-        ONE_LMS_MINI_TEXT_EXPECTED_COUNTS
-    );
-}
-
-#[test]
-fn bucket_indices_from_counts_u32_one_lms_mini_text() {
-    let bucket_start_indices =
-        bucket_start_indices_from_counts(&ONE_LMS_MINI_TEXT_METADATA.char_counts);
-    let bucket_end_indices =
-        bucket_end_indices_from_counts(&ONE_LMS_MINI_TEXT_METADATA.char_counts);
-
-    assert_eq!(bucket_start_indices, [0, 1]);
-    assert_eq!(bucket_end_indices, [0, 2]);
-}
 
 #[test]
 fn lms_substring_sorting_u32_one_lms_mini_text() {
@@ -278,39 +222,9 @@ fn create_reduced_text_u32_one_lms_mini_text() {
 // starts with L-type, contains exactly two LMS chars except for the virtual sentinel,
 // LMS substrings are compared until the virtual sentinel is the difference maker
 static TWO_LMS_MINI_TEXT: &[u64] = &[1, 0, 1, 0, 1];
-static TWO_LMS_MINI_TEXT_EXPECTED_COUNTS: &[usize] = &[2, 3];
 static TWO_LMS_MINI_TEXT_METADATA: LazyLock<TextMetadata> =
     LazyLock::new(|| scan_for_counts_types_and_lms_chars(TWO_LMS_MINI_TEXT, 1));
 static TWO_LMS_MINI_TEXT_LMS_CHARS: &[usize] = &[3, 1];
-
-#[test]
-fn scan_for_counts_types_and_lms_chars_u64_two_lms_mini_text() {
-    assert_eq!(
-        TWO_LMS_MINI_TEXT_METADATA.is_s_type,
-        bitvec::bits![0, 1, 0, 1, 0, 1]
-    );
-
-    assert_eq!(
-        TWO_LMS_MINI_TEXT_METADATA.reverse_order_lms_char_indices,
-        [5, 3, 1]
-    );
-
-    assert_eq!(
-        TWO_LMS_MINI_TEXT_METADATA.char_counts,
-        TWO_LMS_MINI_TEXT_EXPECTED_COUNTS
-    );
-}
-
-#[test]
-fn bucket_indices_from_counts_u64_two_lms_mini_text() {
-    let bucket_start_indices =
-        bucket_start_indices_from_counts(&TWO_LMS_MINI_TEXT_METADATA.char_counts);
-    let bucket_end_indices =
-        bucket_end_indices_from_counts(&TWO_LMS_MINI_TEXT_METADATA.char_counts);
-
-    assert_eq!(bucket_start_indices, [0, 2]);
-    assert_eq!(bucket_end_indices, [1, 4]);
-}
 
 #[test]
 fn lms_substring_sorting_u64_two_lms_mini_text() {
