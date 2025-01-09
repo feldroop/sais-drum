@@ -16,7 +16,7 @@ fn whole_algorithm_u8_abc_text() {
 }
 
 #[test]
-fn whole_algorithm_short_texts() {
+fn whole_algorithm_0_1_2_len_texts() {
     let empty_text: [u8; 0] = [];
     let result_zero = SaisBuilder::new().construct_suffix_array(&empty_text);
     let result_one = SaisBuilder::new().construct_suffix_array(&[42u8]);
