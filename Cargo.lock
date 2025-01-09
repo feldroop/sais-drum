@@ -272,6 +272,7 @@ dependencies = [
  "lipsum",
  "num-traits",
  "proptest",
+ "rand",
 ]
 
 [[package]]

@@ -1,7 +1,10 @@
-use lipsum::lipsum_words;
-use proptest::prelude::*;
+use std::iter;
 
-use sais_drum::SaisBuilder;
+use lipsum::lipsum_words_with_rng;
+use proptest::prelude::*;
+use rand::seq::SliceRandom;
+
+use sais_drum::{Character, SaisBuilder};
 
 // example from
 // https://ae.iti.kit.edu/download/kurpicz/2022_text_indexing/02_suffix_tree_and_array_handout_ws2223.pdf
@@ -54,7 +57,37 @@ fn two_lms_mini_text() {
     assert_eq!(suffix_array, [3, 1, 4, 2, 0]);
 }
 
-fn is_suffix_array(maybe_suffix_array: &[usize], text: &[u8]) -> bool {
+#[test]
+fn detrimental_text() {
+    // this text will contain many short, but different LMS-substrings
+    // (bad for memory usage of algorithm and might therefore trigger some edge cases)
+    // they are not all different though, as that would trigger the recursion base case
+    let mut base_chars = Vec::new();
+
+    for character in 0..2000u16 {
+        base_chars.extend(iter::repeat_n(character * 2, 10));
+    }
+
+    base_chars.shuffle(&mut rand::thread_rng());
+
+    let mut text = Vec::new();
+
+    for base_char in base_chars {
+        // create text with small subsequence that will always be a short LMS substring
+        text.extend_from_slice(&[
+            base_char + 1,
+            base_char,
+            base_char + 1,
+            base_char,
+            base_char + 1,
+        ]);
+    }
+
+    let maybe_suffix_array = SaisBuilder::new().construct_suffix_array(&text);
+    assert!(is_suffix_array(&maybe_suffix_array, &text))
+}
+
+fn is_suffix_array<C: Character>(maybe_suffix_array: &[usize], text: &[C]) -> bool {
     if maybe_suffix_array.len() != text.len() {
         return false;
     }
@@ -77,9 +110,10 @@ proptest! {
     }
 
     #[test]
-    fn correctness_lorem_ipsum_tests(text in (0..300usize).prop_map(lipsum_words)) {
+    fn correctness_lorem_ipsum_tests(
+        text in (0..300usize).prop_map(|num_words|lipsum_words_with_rng(rand::thread_rng(), num_words))
+    ) {
         let maybe_suffix_array = SaisBuilder::new().construct_suffix_array(text.as_bytes());
-
         prop_assert!(is_suffix_array(&maybe_suffix_array, text.as_bytes()));
     }
 

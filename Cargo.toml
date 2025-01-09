@@ -10,6 +10,7 @@ num-traits = "0.2.19"
 [dev-dependencies]
 proptest = "1.6.0"
 lipsum = "0.9"
+rand = "0.8.5"
 
 # make things that are used in proptesting faster
 [profile.test.package.proptest]
