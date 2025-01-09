@@ -84,11 +84,7 @@ struct TextMetadata {
 fn scan_for_counts_types_and_lms_chars<C: Character>(text: &[C], max_char: C) -> TextMetadata {
     let num_different_characters = max_char.rank() + 1;
     let mut char_counts = vec![0; num_different_characters];
-
-    // t[] in paper, virtual sentinel at the end
     let mut is_s_type = BitVec::repeat(true, text.len() + 1);
-
-    // P_1 in paper
     let mut lms_char_indices = Vec::new();
 
     // sentinel is by definiton S-type and the smallest character
