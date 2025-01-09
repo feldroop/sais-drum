@@ -39,10 +39,18 @@ fn whole_algorithm_no_lms_mini_text() {
 
 #[test]
 fn whole_algorithm_one_lms_mini_text() {
-    let text = [1u8, 0, 1];
-    let suffix_array = SaisBuilder::new().construct_suffix_array(&text);
+    let text = b"424";
+    let suffix_array = SaisBuilder::new().construct_suffix_array(text);
 
     assert_eq!(suffix_array, [1, 2, 0]);
+}
+
+#[test]
+fn whole_algorithm_two_lms_mini_text() {
+    let text = b"yxyxy";
+    let suffix_array = SaisBuilder::new().construct_suffix_array(text);
+
+    assert_eq!(suffix_array, [3, 1, 4, 2, 0]);
 }
 
 fn construct_suffix_array_naive(text: &[u8]) -> Vec<usize> {

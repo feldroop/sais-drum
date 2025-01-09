@@ -54,7 +54,7 @@ fn bucket_indices_from_counts_u8_abc_text() {
 }
 
 #[test]
-fn test_lms_substring_sorting_u8_abc_text() {
+fn lms_substring_sorting_u8_abc_text() {
     let mut suffix_array_buffer = vec![usize::MAX; ABC_TEXT.len()];
 
     initialize_lms_indices_and_induce(
@@ -86,7 +86,7 @@ fn test_lms_substring_sorting_u8_abc_text() {
 }
 
 #[test]
-fn test_create_reduced_text_u8_abc_text() {
+fn create_reduced_text_u8_abc_text() {
     let mut suffix_array_buffer = vec![usize::MAX; ABC_TEXT.len()];
 
     let reduced_text_metadata = create_reduced_text(
@@ -103,7 +103,7 @@ fn test_create_reduced_text_u8_abc_text() {
 }
 
 #[test]
-fn test_lms_substrings_are_unequal_u8_abc_text() {
+fn lms_substrings_are_unequal_u8_abc_text() {
     assert!(lms_substrings_are_unequal(
         2,
         8,
@@ -119,8 +119,7 @@ fn test_lms_substrings_are_unequal_u8_abc_text() {
 }
 
 // ------------------------------ NO LMS TEXT ------------------------------
-// this tiny example has some interesting properties: it start with an S-type,
-// contains no LMS chars except for the virtual sentinel and is super short
+// starts with S-type, contains no LMS chars except for the virtual sentinel
 static NO_LMS_MINI_TEXT: &[u16] = &[0, 1];
 static NO_LMS_MINI_TEXT_EXPECTED_COUNTS: &[usize] = &[1, 1];
 static NO_LMS_MINI_TEXT_METADATA: LazyLock<TextMetadata> =
@@ -153,7 +152,7 @@ fn bucket_indices_from_counts_u16_no_lms_mini_text() {
 }
 
 #[test]
-fn test_lms_substring_sorting_u16_no_lms_mini_text() {
+fn lms_substring_sorting_u16_no_lms_mini_text() {
     let mut suffix_array_buffer = vec![usize::MAX; NO_LMS_MINI_TEXT.len()];
 
     initialize_lms_indices_and_induce(
@@ -179,7 +178,7 @@ fn test_lms_substring_sorting_u16_no_lms_mini_text() {
 }
 
 #[test]
-fn test_create_reduced_text_u16_no_lms_mini_text() {
+fn create_reduced_text_u16_no_lms_mini_text() {
     let mut suffix_array_buffer = vec![usize::MAX; NO_LMS_MINI_TEXT.len()];
 
     let reduced_text_metadata = create_reduced_text(
@@ -196,8 +195,7 @@ fn test_create_reduced_text_u16_no_lms_mini_text() {
 }
 
 // ------------------------------ ONE LMS TEXT ------------------------------
-// this tiny example has some interesting properties: it start with an L-type,
-// contains only one LMS char except for the virtual sentinel and is super short
+// starts with L-type, contains exactly one LMS char except for the virtual sentinel
 static ONE_LMS_MINI_TEXT: &[u32] = &[1, 0, 1];
 static ONE_LMS_MINI_TEXT_EXPECTED_COUNTS: &[usize] = &[1, 2];
 static ONE_LMS_MINI_TEXT_METADATA: LazyLock<TextMetadata> =
@@ -234,7 +232,7 @@ fn bucket_indices_from_counts_u32_one_lms_mini_text() {
 }
 
 #[test]
-fn test_lms_substring_sorting_u32_one_lms_mini_text() {
+fn lms_substring_sorting_u32_one_lms_mini_text() {
     let mut suffix_array_buffer = vec![usize::MAX; ONE_LMS_MINI_TEXT.len()];
 
     initialize_lms_indices_and_induce(
@@ -260,7 +258,7 @@ fn test_lms_substring_sorting_u32_one_lms_mini_text() {
 }
 
 #[test]
-fn test_create_reduced_text_u32_one_lms_mini_text() {
+fn create_reduced_text_u32_one_lms_mini_text() {
     let mut suffix_array_buffer = vec![usize::MAX; ONE_LMS_MINI_TEXT.len()];
 
     let reduced_text_metadata = create_reduced_text(
@@ -274,4 +272,95 @@ fn test_create_reduced_text_u32_one_lms_mini_text() {
     assert_eq!(reduced_text_metadata.num_different_names, 1);
     assert_eq!(reduced_text_metadata.backtransformation_table, &[1]);
     assert_eq!(reduced_text_metadata.data, [0]);
+}
+
+// ------------------------------ TWO LMS TEXT ------------------------------
+// starts with L-type, contains exactly two LMS chars except for the virtual sentinel,
+// LMS substrings are compared until the virtual sentinel is the difference maker
+static TWO_LMS_MINI_TEXT: &[u64] = &[1, 0, 1, 0, 1];
+static TWO_LMS_MINI_TEXT_EXPECTED_COUNTS: &[usize] = &[2, 3];
+static TWO_LMS_MINI_TEXT_METADATA: LazyLock<TextMetadata> =
+    LazyLock::new(|| scan_for_counts_types_and_lms_chars(TWO_LMS_MINI_TEXT, 1));
+static TWO_LMS_MINI_TEXT_LMS_CHARS: &[usize] = &[3, 1];
+
+#[test]
+fn scan_for_counts_types_and_lms_chars_u64_two_lms_mini_text() {
+    assert_eq!(
+        TWO_LMS_MINI_TEXT_METADATA.is_s_type,
+        bitvec::bits![0, 1, 0, 1, 0, 1]
+    );
+
+    assert_eq!(
+        TWO_LMS_MINI_TEXT_METADATA.reverse_order_lms_char_indices,
+        [5, 3, 1]
+    );
+
+    assert_eq!(
+        TWO_LMS_MINI_TEXT_METADATA.char_counts,
+        TWO_LMS_MINI_TEXT_EXPECTED_COUNTS
+    );
+}
+
+#[test]
+fn bucket_indices_from_counts_u64_two_lms_mini_text() {
+    let bucket_start_indices =
+        bucket_start_indices_from_counts(&TWO_LMS_MINI_TEXT_METADATA.char_counts);
+    let bucket_end_indices =
+        bucket_end_indices_from_counts(&TWO_LMS_MINI_TEXT_METADATA.char_counts);
+
+    assert_eq!(bucket_start_indices, [0, 2]);
+    assert_eq!(bucket_end_indices, [1, 4]);
+}
+
+#[test]
+fn lms_substring_sorting_u64_two_lms_mini_text() {
+    let mut suffix_array_buffer = vec![usize::MAX; TWO_LMS_MINI_TEXT.len()];
+
+    initialize_lms_indices_and_induce(
+        &mut suffix_array_buffer,
+        TWO_LMS_MINI_TEXT_METADATA
+            .reverse_order_lms_char_indices
+            .iter()
+            .skip(1)
+            .copied(),
+        &TWO_LMS_MINI_TEXT_METADATA.char_counts,
+        &TWO_LMS_MINI_TEXT_METADATA.is_s_type,
+        TWO_LMS_MINI_TEXT,
+    );
+
+    assert_eq!(suffix_array_buffer, [3, 1, 4, 0, 2]);
+
+    let sorted_lms_substring_indices = extract_sorted_lms_substring_indices(
+        &TWO_LMS_MINI_TEXT_METADATA.is_s_type,
+        &suffix_array_buffer,
+    );
+
+    assert_eq!(sorted_lms_substring_indices, TWO_LMS_MINI_TEXT_LMS_CHARS);
+}
+
+#[test]
+fn create_reduced_text_u64_two_lms_mini_text() {
+    let mut suffix_array_buffer = vec![usize::MAX; TWO_LMS_MINI_TEXT.len()];
+
+    let reduced_text_metadata = create_reduced_text(
+        &[3, 1],
+        &mut suffix_array_buffer,
+        &TWO_LMS_MINI_TEXT_METADATA.is_s_type,
+        TWO_LMS_MINI_TEXT,
+    );
+
+    assert_eq!(reduced_text_metadata.data.len(), 2);
+    assert_eq!(reduced_text_metadata.num_different_names, 2);
+    assert_eq!(reduced_text_metadata.backtransformation_table, &[1, 3]);
+    assert_eq!(reduced_text_metadata.data, [1, 0]);
+}
+
+#[test]
+fn lms_substrings_are_unequal_u64_two_lms_mini_text() {
+    assert!(lms_substrings_are_unequal(
+        1,
+        3,
+        &TWO_LMS_MINI_TEXT_METADATA.is_s_type,
+        TWO_LMS_MINI_TEXT
+    ));
 }

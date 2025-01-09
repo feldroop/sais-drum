@@ -327,6 +327,8 @@ fn bucket_end_indices_from_counts(char_counts: &[usize]) -> Vec<usize> {
         .collect()
 }
 
+// this assumes, that the two given indices are different. otherwise it might return true
+// in some edge cases, when first_lms_substring_index == second_lms_substring_index
 fn lms_substrings_are_unequal<C: Character>(
     first_lms_substring_index: usize,
     second_lms_substring_index: usize,
@@ -338,17 +340,14 @@ fn lms_substrings_are_unequal<C: Character>(
     let mut larger_lms_substring_index =
         cmp::max(first_lms_substring_index, second_lms_substring_index);
 
-    if text[smaller_lms_substring_index] != text[larger_lms_substring_index]
-        || text[smaller_lms_substring_index + 1] != text[larger_lms_substring_index + 1]
-    {
+    if text[smaller_lms_substring_index] != text[larger_lms_substring_index] {
         return true;
     }
 
-    // this is in bounds, because every lms substring has at least length 3, except for the sentinel,
-    // but it is a unique chracter and would be caught by the above if statement.
-    // also, the sentinel is handled as a virtual character, so it does never appear in this function
-    smaller_lms_substring_index += 2;
-    larger_lms_substring_index += 2;
+    // this is in bounds, because every lms substring has at least length 2 (not counting virtual sentinel),
+    // except for the sentinel itself, but it is handled as a virtual character, so it does never appear here
+    smaller_lms_substring_index += 1;
+    larger_lms_substring_index += 1;
 
     // lms-substrings are defined as equal if their length, their S/L-types and characters all match
     // in this loop, we only check the characters until one of the strings ends, because if
