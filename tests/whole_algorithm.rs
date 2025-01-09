@@ -73,7 +73,7 @@ fn detrimental_text() {
     let mut text = Vec::new();
 
     for base_char in base_chars {
-        // create text with small subsequence that will always be a short LMS substring
+        // add small subsequence to text that will always contain a short LMS substring
         text.extend_from_slice(&[
             base_char + 1,
             base_char,
