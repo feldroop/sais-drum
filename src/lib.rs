@@ -49,7 +49,13 @@ impl<C: Character> SaisBuilder<C> {
     }
 
     fn get_max_char(&self) -> C {
-        self.max_char.unwrap_or(C::max_char())
+        let max_char = self.max_char.unwrap_or(C::max_char());
+
+        if max_char.rank() > u16::MAX as usize {
+            todo!("for large alphabets, create a threshold where the text is scanned for max_char");
+        }
+
+        max_char
     }
 }
 
