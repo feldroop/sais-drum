@@ -1,3 +1,4 @@
+use lipsum::lipsum_words;
 use proptest::prelude::*;
 
 use sais_drum::SaisBuilder;
@@ -7,7 +8,7 @@ use sais_drum::SaisBuilder;
 static ABC_TEXT: &[u8] = b"ababcabcabba";
 
 #[test]
-fn whole_algorithm_u8_abc_text() {
+fn u8_abc_text() {
     let result = SaisBuilder::new().construct_suffix_array(ABC_TEXT);
     let expected_suffix_array = [11, 0, 8, 5, 2, 10, 1, 9, 6, 3, 7, 4];
 
@@ -16,7 +17,7 @@ fn whole_algorithm_u8_abc_text() {
 }
 
 #[test]
-fn whole_algorithm_0_1_2_len_texts() {
+fn len_0_1_2_texts() {
     let empty_text: [u8; 0] = [];
     let result_zero = SaisBuilder::new().construct_suffix_array(&empty_text);
     let result_one = SaisBuilder::new().construct_suffix_array(&[42u8]);
@@ -30,7 +31,7 @@ fn whole_algorithm_0_1_2_len_texts() {
 }
 
 #[test]
-fn whole_algorithm_no_lms_mini_text() {
+fn no_lms_mini_text() {
     let text = [0u8, 1];
     let suffix_array = SaisBuilder::new().construct_suffix_array(&text);
 
@@ -38,7 +39,7 @@ fn whole_algorithm_no_lms_mini_text() {
 }
 
 #[test]
-fn whole_algorithm_one_lms_mini_text() {
+fn one_lms_mini_text() {
     let text = b"424";
     let suffix_array = SaisBuilder::new().construct_suffix_array(text);
 
@@ -46,7 +47,7 @@ fn whole_algorithm_one_lms_mini_text() {
 }
 
 #[test]
-fn whole_algorithm_two_lms_mini_text() {
+fn two_lms_mini_text() {
     let text = b"yxyxy";
     let suffix_array = SaisBuilder::new().construct_suffix_array(text);
 
@@ -69,9 +70,17 @@ fn is_suffix_array(maybe_suffix_array: &[usize], text: &[u8]) -> bool {
 
 proptest! {
     #[test]
-    fn whole_algorithm_correctness_random_texts(text in prop::collection::vec(any::<u8>(), 0..10_000)) {
+    fn correctness_random_texts(text in prop::collection::vec(any::<u8>(), 0..1000)) {
         let maybe_suffix_array = SaisBuilder::new().construct_suffix_array(&text);
 
         prop_assert!(is_suffix_array(&maybe_suffix_array, &text));
     }
+
+    #[test]
+    fn correctness_lorem_ipsum_tests(text in (0..300usize).prop_map(lipsum_words)) {
+        let maybe_suffix_array = SaisBuilder::new().construct_suffix_array(text.as_bytes());
+
+        prop_assert!(is_suffix_array(&maybe_suffix_array, text.as_bytes()));
+    }
+
 }

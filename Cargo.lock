@@ -111,6 +111,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d26c52dbd32dccf2d10cac7725f8eae5296885fb5703b261f7d0a0739ec807ab"
 
 [[package]]
+name = "lipsum"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "636860251af8963cc40f6b4baadee105f02e21b28131d76eba8e40ce84ab8064"
+dependencies = [
+ "rand",
+ "rand_chacha",
+]
+
+[[package]]
 name = "num-traits"
 version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -259,6 +269,7 @@ name = "sais_drum"
 version = "0.1.0"
 dependencies = [
  "bitvec",
+ "lipsum",
  "num-traits",
  "proptest",
 ]
