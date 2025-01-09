@@ -7,7 +7,7 @@ use sais_drum::SaisBuilder;
 static ABC_TEXT: &[u8] = b"ababcabcabba";
 
 #[test]
-fn test_whole_algorithm_u8_abc_text() {
+fn whole_algorithm_u8_abc_text() {
     let naive_result = construct_suffix_array_naive(ABC_TEXT);
     let result = SaisBuilder::new().construct_suffix_array(ABC_TEXT);
 
@@ -16,7 +16,7 @@ fn test_whole_algorithm_u8_abc_text() {
 }
 
 #[test]
-fn test_whole_algorithm_short_texts() {
+fn whole_algorithm_short_texts() {
     let empty_text: [u8; 0] = [];
     let result_zero = SaisBuilder::new().construct_suffix_array(&empty_text);
     let result_one = SaisBuilder::new().construct_suffix_array(&[42u8]);
@@ -30,9 +30,19 @@ fn test_whole_algorithm_short_texts() {
 }
 
 #[test]
-fn test_whole_algorithm_no_lms_mini_text() {
+fn whole_algorithm_no_lms_mini_text() {
     let text = [0u8, 1];
-    let _ = SaisBuilder::new().construct_suffix_array(&text);
+    let suffix_array = SaisBuilder::new().construct_suffix_array(&text);
+
+    assert_eq!(suffix_array, [0, 1]);
+}
+
+#[test]
+fn whole_algorithm_one_lms_mini_text() {
+    let text = [1u8, 0, 1];
+    let suffix_array = SaisBuilder::new().construct_suffix_array(&text);
+
+    assert_eq!(suffix_array, [1, 2, 0]);
 }
 
 fn construct_suffix_array_naive(text: &[u8]) -> Vec<usize> {

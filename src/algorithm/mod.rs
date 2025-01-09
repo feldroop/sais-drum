@@ -140,7 +140,10 @@ fn initialize_lms_indices_and_induce<C: Character>(
         let bucket_end_index = &mut bucket_end_indices[lms_char.rank()];
 
         suffix_array_buffer[*bucket_end_index] = lms_char_index;
-        *bucket_end_index -= 1;
+
+        // saturating sub used, because the last placement of the first bucket (index 0) otherwise might underflow
+        // (it is okay to keep zero, because it is never read again. might also just use underflowing function)
+        *bucket_end_index = bucket_end_index.saturating_sub(1);
     }
 
     induce(suffix_array_buffer, char_counts, is_s_type, text);
@@ -194,7 +197,8 @@ fn induce<C: Character>(
             &mut bucket_end_indices[induced_suffix_first_char.rank()];
 
         suffix_array_buffer[*induced_suffix_bucket_end_index] = suffix_index - 1;
-        // saturating sub used, because the last placement of the first bucket otherwise might underflow
+
+        // saturating sub used, because the last placement of the first bucket (index 0) otherwise might underflow
         // (it is okay to keep zero, because it is never read again. might also just use underflowing function)
         *induced_suffix_bucket_end_index = induced_suffix_bucket_end_index.saturating_sub(1);
     }

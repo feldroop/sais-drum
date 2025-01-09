@@ -194,3 +194,84 @@ fn test_create_reduced_text_u16_no_lms_mini_text() {
     assert_eq!(reduced_text_metadata.backtransformation_table, EMPTY_SLICE);
     assert_eq!(reduced_text_metadata.data, EMPTY_SLICE);
 }
+
+// ------------------------------ ONE LMS TEXT ------------------------------
+// this tiny example has some interesting properties: it start with an L-type,
+// contains only one LMS char except for the virtual sentinel and is super short
+static ONE_LMS_MINI_TEXT: &[u32] = &[1, 0, 1];
+static ONE_LMS_MINI_TEXT_EXPECTED_COUNTS: &[usize] = &[1, 2];
+static ONE_LMS_MINI_TEXT_METADATA: LazyLock<TextMetadata> =
+    LazyLock::new(|| scan_for_counts_types_and_lms_chars(ONE_LMS_MINI_TEXT, 1));
+static ONE_LMS_MINI_TEXT_LMS_CHARS: &[usize] = &[1];
+
+#[test]
+fn scan_for_counts_types_and_lms_chars_u32_one_lms_mini_text() {
+    assert_eq!(
+        ONE_LMS_MINI_TEXT_METADATA.is_s_type,
+        bitvec::bits![0, 1, 0, 1]
+    );
+
+    assert_eq!(
+        ONE_LMS_MINI_TEXT_METADATA.reverse_order_lms_char_indices,
+        [3, 1]
+    );
+
+    assert_eq!(
+        ONE_LMS_MINI_TEXT_METADATA.char_counts,
+        ONE_LMS_MINI_TEXT_EXPECTED_COUNTS
+    );
+}
+
+#[test]
+fn bucket_indices_from_counts_u32_one_lms_mini_text() {
+    let bucket_start_indices =
+        bucket_start_indices_from_counts(&ONE_LMS_MINI_TEXT_METADATA.char_counts);
+    let bucket_end_indices =
+        bucket_end_indices_from_counts(&ONE_LMS_MINI_TEXT_METADATA.char_counts);
+
+    assert_eq!(bucket_start_indices, [0, 1]);
+    assert_eq!(bucket_end_indices, [0, 2]);
+}
+
+#[test]
+fn test_lms_substring_sorting_u32_one_lms_mini_text() {
+    let mut suffix_array_buffer = vec![usize::MAX; ONE_LMS_MINI_TEXT.len()];
+
+    initialize_lms_indices_and_induce(
+        &mut suffix_array_buffer,
+        ONE_LMS_MINI_TEXT_METADATA
+            .reverse_order_lms_char_indices
+            .iter()
+            .skip(1)
+            .copied(),
+        &ONE_LMS_MINI_TEXT_METADATA.char_counts,
+        &ONE_LMS_MINI_TEXT_METADATA.is_s_type,
+        ONE_LMS_MINI_TEXT,
+    );
+
+    assert_eq!(suffix_array_buffer, [1, 2, 0]);
+
+    let sorted_lms_substring_indices = extract_sorted_lms_substring_indices(
+        &ONE_LMS_MINI_TEXT_METADATA.is_s_type,
+        &suffix_array_buffer,
+    );
+
+    assert_eq!(sorted_lms_substring_indices, ONE_LMS_MINI_TEXT_LMS_CHARS);
+}
+
+#[test]
+fn test_create_reduced_text_u32_one_lms_mini_text() {
+    let mut suffix_array_buffer = vec![usize::MAX; ONE_LMS_MINI_TEXT.len()];
+
+    let reduced_text_metadata = create_reduced_text(
+        &[1],
+        &mut suffix_array_buffer,
+        &ONE_LMS_MINI_TEXT_METADATA.is_s_type,
+        ONE_LMS_MINI_TEXT,
+    );
+
+    assert_eq!(reduced_text_metadata.data.len(), 1);
+    assert_eq!(reduced_text_metadata.num_different_names, 1);
+    assert_eq!(reduced_text_metadata.backtransformation_table, &[1]);
+    assert_eq!(reduced_text_metadata.data, [0]);
+}
