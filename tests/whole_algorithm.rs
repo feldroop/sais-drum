@@ -8,11 +8,11 @@ static ABC_TEXT: &[u8] = b"ababcabcabba";
 
 #[test]
 fn whole_algorithm_u8_abc_text() {
-    let naive_result = construct_suffix_array_naive(ABC_TEXT);
     let result = SaisBuilder::new().construct_suffix_array(ABC_TEXT);
+    let expected_suffix_array = [11, 0, 8, 5, 2, 10, 1, 9, 6, 3, 7, 4];
 
-    assert_eq!(naive_result, [11, 0, 8, 5, 2, 10, 1, 9, 6, 3, 7, 4]);
-    assert_eq!(result, naive_result);
+    assert!(is_suffix_array(&result, ABC_TEXT));
+    assert_eq!(result, expected_suffix_array);
 }
 
 #[test]
@@ -53,15 +53,25 @@ fn whole_algorithm_two_lms_mini_text() {
     assert_eq!(suffix_array, [3, 1, 4, 2, 0]);
 }
 
-fn construct_suffix_array_naive(text: &[u8]) -> Vec<usize> {
-    let mut suffix_array: Vec<_> = (0..text.len()).collect();
-    suffix_array.sort_unstable_by_key(|&index| &text[index..]);
-    suffix_array
+fn is_suffix_array(maybe_suffix_array: &[usize], text: &[u8]) -> bool {
+    if maybe_suffix_array.len() != text.len() {
+        return false;
+    }
+
+    for suffix_indices in maybe_suffix_array.windows(2) {
+        if text[suffix_indices[0]..] > text[suffix_indices[1]..] {
+            return false;
+        }
+    }
+
+    true
 }
 
 proptest! {
     #[test]
-    fn doesnt_crash_short(text in prop::collection::vec(any::<u8>(), 0..100)) {
-        let _ = SaisBuilder::new().construct_suffix_array(&text);
+    fn whole_algorithm_correctness_random_texts(text in prop::collection::vec(any::<u8>(), 0..10_000)) {
+        let maybe_suffix_array = SaisBuilder::new().construct_suffix_array(&text);
+
+        prop_assert!(is_suffix_array(&maybe_suffix_array, &text));
     }
 }
