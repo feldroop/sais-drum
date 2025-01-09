@@ -135,7 +135,6 @@ fn initialize_lms_indices_and_induce<C: Character>(
 ) {
     let mut bucket_end_indices = bucket_end_indices_from_counts(char_counts);
 
-    // lms char indices currently in REVERSE text order, first one is virtual sentinel
     for lms_char_index in lms_indices.into_iter() {
         let lms_char = text[lms_char_index];
         let bucket_end_index = &mut bucket_end_indices[lms_char.rank()];
@@ -154,13 +153,12 @@ fn induce<C: Character>(
     text: &[C],
 ) {
     // ---------- LEFT TO RIGHT SCAN ----------
-    let mut bucket_start_indices_for_induction = bucket_start_indices_from_counts(char_counts);
+    let mut bucket_start_indices = bucket_start_indices_from_counts(char_counts);
 
     // virtual sentinel induction, it would normally be at first position of the suffix array
     let last_suffix_index = text.len() - 1;
     let last_suffix_char = text[last_suffix_index];
-    let last_suffix_bucket_start_index =
-        &mut bucket_start_indices_for_induction[last_suffix_char.rank()];
+    let last_suffix_bucket_start_index = &mut bucket_start_indices[last_suffix_char.rank()];
     suffix_array_buffer[*last_suffix_bucket_start_index] = last_suffix_index;
     *last_suffix_bucket_start_index += 1;
 
@@ -173,7 +171,7 @@ fn induce<C: Character>(
 
         let induced_suffix_first_char = text[suffix_index - 1];
         let induced_suffix_bucket_start_index =
-            &mut bucket_start_indices_for_induction[induced_suffix_first_char.rank()];
+            &mut bucket_start_indices[induced_suffix_first_char.rank()];
 
         suffix_array_buffer[*induced_suffix_bucket_start_index] = suffix_index - 1;
         *induced_suffix_bucket_start_index += 1;
@@ -181,7 +179,7 @@ fn induce<C: Character>(
 
     // ---------- RIGHT TO LEFT SCAN ----------
 
-    let mut bucket_end_indices_for_induction = bucket_end_indices_from_counts(char_counts);
+    let mut bucket_end_indices = bucket_end_indices_from_counts(char_counts);
     for suffix_array_index in (0..suffix_array_buffer.len()).rev() {
         let suffix_index = suffix_array_buffer[suffix_array_index];
 
@@ -193,10 +191,12 @@ fn induce<C: Character>(
 
         let induced_suffix_first_char = text[suffix_index - 1];
         let induced_suffix_bucket_end_index =
-            &mut bucket_end_indices_for_induction[induced_suffix_first_char.rank()];
+            &mut bucket_end_indices[induced_suffix_first_char.rank()];
 
         suffix_array_buffer[*induced_suffix_bucket_end_index] = suffix_index - 1;
-        *induced_suffix_bucket_end_index -= 1;
+        // saturating sub used, because the last placement of the first bucket otherwise might underflow
+        // (it is okay to keep zero, because it is never read again. might also just use underflowing function)
+        *induced_suffix_bucket_end_index = induced_suffix_bucket_end_index.saturating_sub(1);
     }
 
     // on the right to left scan, the sentinel does not induce anything,
@@ -300,7 +300,7 @@ fn is_lms_type(index: usize, is_s_type: &BitSlice) -> bool {
     is_s_type[index] && !is_s_type[index - 1]
 }
 
-// the virtual bucket of the sentinel (count 1, starts at 0) is NOT included
+// inclusive index, the virtual bucket of the sentinel (count 1, ends at 0) is NOT included
 fn bucket_start_indices_from_counts(char_counts: &[usize]) -> Vec<usize> {
     char_counts
         .iter()

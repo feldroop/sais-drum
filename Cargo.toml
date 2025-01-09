@@ -9,3 +9,9 @@ num-traits = "0.2.19"
 
 [dev-dependencies]
 proptest = "1.6.0"
+
+# make proptest and its random number generator run fast
+[profile.test.package.proptest]
+opt-level = 3
+[profile.test.package.rand_chacha]
+opt-level = 3

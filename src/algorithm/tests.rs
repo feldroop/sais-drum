@@ -2,12 +2,12 @@ use std::{iter, sync::LazyLock};
 
 use super::*;
 
+// ------------------------------ ABC TEXT ------------------------------
 // example from
 // https://ae.iti.kit.edu/download/kurpicz/2022_text_indexing/02_suffix_tree_and_array_handout_ws2223.pdf
 // LMS-chars                 *  *  *   *<- virtual sentinel
 // S/L-types               SLSSLSSLSLLLS
 static ABC_TEXT: &[u8] = b"ababcabcabba";
-
 static ABC_TEXT_EXPECTED_COUNTS: LazyLock<Vec<usize>> = LazyLock::new(|| {
     let mut counts = vec![0usize; 256];
     counts[b'a' as usize] = 5;
@@ -20,7 +20,7 @@ static ABC_TEXT_METADATA: LazyLock<TextMetadata> =
 static ABC_TEXT_LEX_SORTED_LMS_SUBSTRING_INDICES: &[usize] = &[8, 2, 5];
 
 #[test]
-fn test_scan_for_counts_types_and_lms_chars_u8_abc_text() {
+fn scan_for_counts_types_and_lms_chars_u8_abc_text() {
     assert_eq!(
         ABC_TEXT_METADATA.is_s_type,
         bitvec::bits![1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1]
@@ -30,11 +30,12 @@ fn test_scan_for_counts_types_and_lms_chars_u8_abc_text() {
         ABC_TEXT_METADATA.reverse_order_lms_char_indices,
         [12, 8, 5, 2]
     );
-    assert_eq!(&ABC_TEXT_METADATA.char_counts, &*ABC_TEXT_EXPECTED_COUNTS);
+
+    assert_eq!(ABC_TEXT_METADATA.char_counts, *ABC_TEXT_EXPECTED_COUNTS);
 }
 
 #[test]
-fn test_bucket_indices_from_counts_u8_abc_text() {
+fn bucket_indices_from_counts_u8_abc_text() {
     let bucket_start_indices = bucket_start_indices_from_counts(&ABC_TEXT_METADATA.char_counts);
     let bucket_end_indices = bucket_end_indices_from_counts(&ABC_TEXT_METADATA.char_counts);
 
@@ -115,4 +116,81 @@ fn test_lms_substrings_are_unequal_u8_abc_text() {
         &ABC_TEXT_METADATA.is_s_type,
         ABC_TEXT
     ));
+}
+
+// ------------------------------ NO LMS TEXT ------------------------------
+// this tiny example has some interesting properties: it start with an S-type,
+// contains no LMS chars except for the virtual sentinel and is super short
+static NO_LMS_MINI_TEXT: &[u16] = &[0, 1];
+static NO_LMS_MINI_TEXT_EXPECTED_COUNTS: &[usize] = &[1, 1];
+static NO_LMS_MINI_TEXT_METADATA: LazyLock<TextMetadata> =
+    LazyLock::new(|| scan_for_counts_types_and_lms_chars(NO_LMS_MINI_TEXT, 1));
+static EMPTY_SLICE: &[usize] = &[];
+
+#[test]
+fn scan_for_counts_types_and_lms_chars_u16_no_lms_mini_text() {
+    assert_eq!(NO_LMS_MINI_TEXT_METADATA.is_s_type, bitvec::bits![1, 0, 1]);
+
+    assert_eq!(
+        NO_LMS_MINI_TEXT_METADATA.reverse_order_lms_char_indices,
+        [2]
+    );
+
+    assert_eq!(
+        NO_LMS_MINI_TEXT_METADATA.char_counts,
+        NO_LMS_MINI_TEXT_EXPECTED_COUNTS
+    );
+}
+
+#[test]
+fn bucket_indices_from_counts_u16_no_lms_mini_text() {
+    let bucket_start_indices =
+        bucket_start_indices_from_counts(&NO_LMS_MINI_TEXT_METADATA.char_counts);
+    let bucket_end_indices = bucket_end_indices_from_counts(&NO_LMS_MINI_TEXT_METADATA.char_counts);
+
+    assert_eq!(bucket_start_indices, [0, 1]);
+    assert_eq!(bucket_end_indices, [0, 1]);
+}
+
+#[test]
+fn test_lms_substring_sorting_u16_no_lms_mini_text() {
+    let mut suffix_array_buffer = vec![usize::MAX; NO_LMS_MINI_TEXT.len()];
+
+    initialize_lms_indices_and_induce(
+        &mut suffix_array_buffer,
+        NO_LMS_MINI_TEXT_METADATA
+            .reverse_order_lms_char_indices
+            .iter()
+            .skip(1)
+            .copied(),
+        &NO_LMS_MINI_TEXT_METADATA.char_counts,
+        &NO_LMS_MINI_TEXT_METADATA.is_s_type,
+        NO_LMS_MINI_TEXT,
+    );
+
+    assert_eq!(suffix_array_buffer, [0, 1]);
+
+    let sorted_lms_substring_indices = extract_sorted_lms_substring_indices(
+        &NO_LMS_MINI_TEXT_METADATA.is_s_type,
+        &suffix_array_buffer,
+    );
+
+    assert_eq!(sorted_lms_substring_indices, EMPTY_SLICE);
+}
+
+#[test]
+fn test_create_reduced_text_u16_no_lms_mini_text() {
+    let mut suffix_array_buffer = vec![usize::MAX; NO_LMS_MINI_TEXT.len()];
+
+    let reduced_text_metadata = create_reduced_text(
+        EMPTY_SLICE,
+        &mut suffix_array_buffer,
+        &NO_LMS_MINI_TEXT_METADATA.is_s_type,
+        NO_LMS_MINI_TEXT,
+    );
+
+    assert_eq!(reduced_text_metadata.data.len(), 0);
+    assert_eq!(reduced_text_metadata.num_different_names, 0);
+    assert_eq!(reduced_text_metadata.backtransformation_table, EMPTY_SLICE);
+    assert_eq!(reduced_text_metadata.data, EMPTY_SLICE);
 }

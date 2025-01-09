@@ -1,3 +1,5 @@
+use proptest::prelude::*;
+
 use sais_drum::SaisBuilder;
 
 // example from
@@ -27,8 +29,21 @@ fn test_whole_algorithm_short_texts() {
     assert_eq!(result_two, [1, 0]);
 }
 
+#[test]
+fn test_whole_algorithm_no_lms_mini_text() {
+    let text = [0u8, 1];
+    let _ = SaisBuilder::new().construct_suffix_array(&text);
+}
+
 fn construct_suffix_array_naive(text: &[u8]) -> Vec<usize> {
     let mut suffix_array: Vec<_> = (0..text.len()).collect();
     suffix_array.sort_unstable_by_key(|&index| &text[index..]);
     suffix_array
+}
+
+proptest! {
+    #[test]
+    fn doesnt_crash_short(text in prop::collection::vec(any::<u8>(), 0..100)) {
+        let _ = SaisBuilder::new().construct_suffix_array(&text);
+    }
 }
