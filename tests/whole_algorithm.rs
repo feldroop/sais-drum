@@ -102,6 +102,9 @@ fn is_suffix_array<C: Character>(maybe_suffix_array: &[usize], text: &[C]) -> bo
 }
 
 proptest! {
+    // default is 256 and I'd like some more test cases that need to pass
+    #![proptest_config(ProptestConfig::with_cases(2048))]
+
     #[test]
     fn correctness_random_texts(text in prop::collection::vec(any::<u8>(), 0..1000)) {
         let maybe_suffix_array = SaisBuilder::new().construct_suffix_array(&text);
