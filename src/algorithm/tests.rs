@@ -16,19 +16,14 @@ static ABC_TEXT_EXPECTED_COUNTS: LazyLock<Vec<usize>> = LazyLock::new(|| {
     counts
 });
 static ABC_TEXT_METADATA: LazyLock<TextMetadata> =
-    LazyLock::new(|| scan_for_counts_types_and_lms_chars(ABC_TEXT, 255));
-static ABC_TEXT_LEX_SORTED_LMS_SUBSTRING_INDICES: &[usize] = &[8, 2, 5];
+    LazyLock::new(|| scan_for_counts_and_s_l_types(ABC_TEXT, 255));
+static ABC_TEXT_LEX_SORTED_LMS_SUBSTRING_INDICES: &[usize] = &[8, 5, 2];
 
 #[test]
-fn scan_for_counts_types_and_lms_chars_u8_abc_text() {
+fn scan_for_counts_and_s_l_types_u8_abc_text() {
     assert_eq!(
         ABC_TEXT_METADATA.is_s_type,
         bitvec::bits![1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1]
-    );
-
-    assert_eq!(
-        ABC_TEXT_METADATA.reverse_order_lms_char_indices,
-        [12, 8, 5, 2]
     );
 
     assert_eq!(ABC_TEXT_METADATA.char_counts, *ABC_TEXT_EXPECTED_COUNTS);
@@ -55,25 +50,30 @@ fn bucket_indices_from_counts_u8_abc_text() {
 
 #[test]
 fn lms_substring_sorting_u8_abc_text() {
-    let mut suffix_array_buffer = vec![usize::MAX; ABC_TEXT.len()];
+    let mut suffix_array_buffer = vec![NONE_VALUE; ABC_TEXT.len()];
 
-    initialize_lms_indices_and_induce(
+    initialize_lms_indices_in_buckets(&mut suffix_array_buffer, &ABC_TEXT_METADATA, ABC_TEXT);
+
+    let mut expected_suffix_array_buffer = vec![NONE_VALUE; ABC_TEXT.len()];
+    expected_suffix_array_buffer[2] = 8;
+    expected_suffix_array_buffer[3] = 5;
+    expected_suffix_array_buffer[4] = 2;
+
+    // the order of LMS indices inside the buckets is actually arbitrary
+    assert_eq!(suffix_array_buffer, expected_suffix_array_buffer);
+
+    induce(
         &mut suffix_array_buffer,
-        ABC_TEXT_METADATA
-            .reverse_order_lms_char_indices
-            .iter()
-            .skip(1)
-            .copied(),
         &ABC_TEXT_METADATA.char_counts,
         &ABC_TEXT_METADATA.is_s_type,
         ABC_TEXT,
     );
 
-    // different than in the example slides, because multiple results are possible
+    // TODO multiple results are technically possible
     // it would be better to check that all LMS substrings are sorted instead of a fixed result
     assert_eq!(
         suffix_array_buffer,
-        vec![11, 0, 8, 2, 5, 10, 1, 9, 3, 6, 4, 7]
+        vec![11, 0, 8, 5, 2, 10, 1, 9, 6, 3, 7, 4]
     );
 
     let sorted_lms_substring_indices =
@@ -87,7 +87,7 @@ fn lms_substring_sorting_u8_abc_text() {
 
 #[test]
 fn create_reduced_text_u8_abc_text() {
-    let mut suffix_array_buffer = vec![usize::MAX; ABC_TEXT.len()];
+    let mut suffix_array_buffer = vec![NONE_VALUE; ABC_TEXT.len()];
 
     let reduced_text_metadata = create_reduced_text(
         ABC_TEXT_LEX_SORTED_LMS_SUBSTRING_INDICES,
@@ -122,20 +122,24 @@ fn lms_substrings_are_unequal_u8_abc_text() {
 // starts with S-type, contains no LMS chars except for the virtual sentinel
 static NO_LMS_MINI_TEXT: &[u16] = &[0, 1];
 static NO_LMS_MINI_TEXT_METADATA: LazyLock<TextMetadata> =
-    LazyLock::new(|| scan_for_counts_types_and_lms_chars(NO_LMS_MINI_TEXT, 1));
+    LazyLock::new(|| scan_for_counts_and_s_l_types(NO_LMS_MINI_TEXT, 1));
 static EMPTY_SLICE: &[usize] = &[];
 
 #[test]
 fn lms_substring_sorting_u16_no_lms_mini_text() {
-    let mut suffix_array_buffer = vec![usize::MAX; NO_LMS_MINI_TEXT.len()];
+    let mut suffix_array_buffer = vec![NONE_VALUE; NO_LMS_MINI_TEXT.len()];
 
-    initialize_lms_indices_and_induce(
+    initialize_lms_indices_in_buckets(
         &mut suffix_array_buffer,
-        NO_LMS_MINI_TEXT_METADATA
-            .reverse_order_lms_char_indices
-            .iter()
-            .skip(1)
-            .copied(),
+        &NO_LMS_MINI_TEXT_METADATA,
+        NO_LMS_MINI_TEXT,
+    );
+
+    // the order of LMS indices inside the buckets is actually arbitrary
+    assert_eq!(suffix_array_buffer, [NONE_VALUE; NO_LMS_MINI_TEXT.len()]);
+
+    induce(
+        &mut suffix_array_buffer,
         &NO_LMS_MINI_TEXT_METADATA.char_counts,
         &NO_LMS_MINI_TEXT_METADATA.is_s_type,
         NO_LMS_MINI_TEXT,
@@ -153,7 +157,7 @@ fn lms_substring_sorting_u16_no_lms_mini_text() {
 
 #[test]
 fn create_reduced_text_u16_no_lms_mini_text() {
-    let mut suffix_array_buffer = vec![usize::MAX; NO_LMS_MINI_TEXT.len()];
+    let mut suffix_array_buffer = vec![NONE_VALUE; NO_LMS_MINI_TEXT.len()];
 
     let reduced_text_metadata = create_reduced_text(
         EMPTY_SLICE,
@@ -172,20 +176,24 @@ fn create_reduced_text_u16_no_lms_mini_text() {
 // starts with L-type, contains exactly one LMS char except for the virtual sentinel
 static ONE_LMS_MINI_TEXT: &[u32] = &[1, 0, 1];
 static ONE_LMS_MINI_TEXT_METADATA: LazyLock<TextMetadata> =
-    LazyLock::new(|| scan_for_counts_types_and_lms_chars(ONE_LMS_MINI_TEXT, 1));
+    LazyLock::new(|| scan_for_counts_and_s_l_types(ONE_LMS_MINI_TEXT, 1));
 static ONE_LMS_MINI_TEXT_LMS_CHARS: &[usize] = &[1];
 
 #[test]
 fn lms_substring_sorting_u32_one_lms_mini_text() {
-    let mut suffix_array_buffer = vec![usize::MAX; ONE_LMS_MINI_TEXT.len()];
+    let mut suffix_array_buffer = vec![NONE_VALUE; ONE_LMS_MINI_TEXT.len()];
 
-    initialize_lms_indices_and_induce(
+    initialize_lms_indices_in_buckets(
         &mut suffix_array_buffer,
-        ONE_LMS_MINI_TEXT_METADATA
-            .reverse_order_lms_char_indices
-            .iter()
-            .skip(1)
-            .copied(),
+        &ONE_LMS_MINI_TEXT_METADATA,
+        ONE_LMS_MINI_TEXT,
+    );
+
+    // the order of LMS indices inside the buckets is actually arbitrary
+    assert_eq!(suffix_array_buffer, [1, NONE_VALUE, NONE_VALUE]);
+
+    induce(
+        &mut suffix_array_buffer,
         &ONE_LMS_MINI_TEXT_METADATA.char_counts,
         &ONE_LMS_MINI_TEXT_METADATA.is_s_type,
         ONE_LMS_MINI_TEXT,
@@ -203,7 +211,7 @@ fn lms_substring_sorting_u32_one_lms_mini_text() {
 
 #[test]
 fn create_reduced_text_u32_one_lms_mini_text() {
-    let mut suffix_array_buffer = vec![usize::MAX; ONE_LMS_MINI_TEXT.len()];
+    let mut suffix_array_buffer = vec![NONE_VALUE; ONE_LMS_MINI_TEXT.len()];
 
     let reduced_text_metadata = create_reduced_text(
         &[1],
@@ -223,26 +231,33 @@ fn create_reduced_text_u32_one_lms_mini_text() {
 // LMS substrings are compared until the virtual sentinel is the difference maker
 static TWO_LMS_MINI_TEXT: &[u64] = &[1, 0, 1, 0, 1];
 static TWO_LMS_MINI_TEXT_METADATA: LazyLock<TextMetadata> =
-    LazyLock::new(|| scan_for_counts_types_and_lms_chars(TWO_LMS_MINI_TEXT, 1));
+    LazyLock::new(|| scan_for_counts_and_s_l_types(TWO_LMS_MINI_TEXT, 1));
 static TWO_LMS_MINI_TEXT_LMS_CHARS: &[usize] = &[3, 1];
 
 #[test]
 fn lms_substring_sorting_u64_two_lms_mini_text() {
-    let mut suffix_array_buffer = vec![usize::MAX; TWO_LMS_MINI_TEXT.len()];
+    let mut suffix_array_buffer = vec![NONE_VALUE; TWO_LMS_MINI_TEXT.len()];
 
-    initialize_lms_indices_and_induce(
+    initialize_lms_indices_in_buckets(
         &mut suffix_array_buffer,
-        TWO_LMS_MINI_TEXT_METADATA
-            .reverse_order_lms_char_indices
-            .iter()
-            .skip(1)
-            .copied(),
+        &TWO_LMS_MINI_TEXT_METADATA,
+        TWO_LMS_MINI_TEXT,
+    );
+
+    // the order of LMS indices inside the buckets is actually arbitrary
+    assert_eq!(
+        suffix_array_buffer,
+        [3, 1, NONE_VALUE, NONE_VALUE, NONE_VALUE]
+    );
+
+    induce(
+        &mut suffix_array_buffer,
         &TWO_LMS_MINI_TEXT_METADATA.char_counts,
         &TWO_LMS_MINI_TEXT_METADATA.is_s_type,
         TWO_LMS_MINI_TEXT,
     );
 
-    assert_eq!(suffix_array_buffer, [3, 1, 4, 0, 2]);
+    assert_eq!(suffix_array_buffer, [3, 1, 4, 2, 0]);
 
     let sorted_lms_substring_indices = extract_sorted_lms_substring_indices(
         &TWO_LMS_MINI_TEXT_METADATA.is_s_type,
@@ -254,7 +269,7 @@ fn lms_substring_sorting_u64_two_lms_mini_text() {
 
 #[test]
 fn create_reduced_text_u64_two_lms_mini_text() {
-    let mut suffix_array_buffer = vec![usize::MAX; TWO_LMS_MINI_TEXT.len()];
+    let mut suffix_array_buffer = vec![NONE_VALUE; TWO_LMS_MINI_TEXT.len()];
 
     let reduced_text_metadata = create_reduced_text(
         &[3, 1],

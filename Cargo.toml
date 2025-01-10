@@ -11,6 +11,7 @@ num-traits = "0.2.19"
 proptest = "1.6.0"
 lipsum = "0.9"
 rand = "0.8.5"
+criterion = "0.5.1"
 
 # optimize code for faster proptesting
 [profile.test]
