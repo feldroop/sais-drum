@@ -58,6 +58,18 @@ fn two_lms_mini_text() {
 }
 
 #[test]
+fn single_char_text() {
+    let text = vec![0u8; 10_000];
+    let suffix_array = SaisBuilder::new()
+        .with_max_char(0)
+        .construct_suffix_array(&text);
+
+    let expected_suffix_array: Vec<_> = (0..10_000).rev().collect();
+
+    assert_eq!(suffix_array, expected_suffix_array);
+}
+
+#[test]
 fn detrimental_text() {
     // this text will contain many short, but different LMS-substrings
     // (bad for memory usage of algorithm and might therefore trigger some edge cases)
