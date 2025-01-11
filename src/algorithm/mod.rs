@@ -20,24 +20,21 @@ pub fn suffix_array_induced_sort<C: Character>(
         return;
     }
 
-    // TODO skip this scan in recursion (add methods to builder)
+    // TODO skip this scan in recursion
     let text_metadata = scan_for_counts_and_s_l_types(text, max_char);
 
-    initialize_lms_indices_in_buckets(suffix_array_buffer, &text_metadata, text);
+    let num_lms_chars =
+        place_text_order_lms_indices_into_buckets(suffix_array_buffer, &text_metadata, text);
 
-    // sort LMS substrings
-    induce(
+    induce_to_sort_lms_substrings(
         suffix_array_buffer,
         &text_metadata.char_counts,
         &text_metadata.is_s_type,
         text,
     );
 
-    let sorted_lms_substring_indices =
-        extract_sorted_lms_substring_indices(&text_metadata.is_s_type, suffix_array_buffer);
-
-    let reduced_text = create_reduced_text(
-        &sorted_lms_substring_indices,
+    let (reduced_text, vacant_buffer) = create_reduced_text(
+        num_lms_chars,
         suffix_array_buffer,
         &text_metadata.is_s_type,
         text,
@@ -45,7 +42,7 @@ pub fn suffix_array_induced_sort<C: Character>(
 
     let mut reduced_text_suffix_array = vec![NONE_VALUE; reduced_text.data.len()];
 
-    if reduced_text.num_different_names == sorted_lms_substring_indices.len() {
+    if reduced_text.num_different_names == num_lms_chars {
         // base case of recursion. this works, because the reduced text exclusively contains unique characters
         for (reduced_text_suffix_index, &reduced_text_char) in reduced_text.data.iter().enumerate()
         {
@@ -61,15 +58,21 @@ pub fn suffix_array_induced_sort<C: Character>(
 
     let original_text_sorted_lms_indices = backtransform_into_original_text_lms_indices(
         reduced_text_suffix_array,
-        &reduced_text.backtransformation_table,
+        reduced_text.backtransformation_table,
     );
 
     // reinitialize buffer for inducing
     suffix_array_buffer.fill(NONE_VALUE);
 
-    initialize_lms_indices_and_induce(
+    place_sorted_lms_indices_into_buckets(
         suffix_array_buffer,
-        original_text_sorted_lms_indices.iter().rev().copied(),
+        &original_text_sorted_lms_indices,
+        &text_metadata.char_counts,
+        text,
+    );
+
+    induce_to_finalize_suffix_array(
+        suffix_array_buffer,
         &text_metadata.char_counts,
         &text_metadata.is_s_type,
         text,
@@ -113,17 +116,20 @@ fn scan_for_counts_and_s_l_types<C: Character>(text: &[C], max_char: C) -> TextM
     }
 }
 
-fn initialize_lms_indices_in_buckets<C: Character>(
+// returns number of lms chars, without sentinel
+fn place_text_order_lms_indices_into_buckets<C: Character>(
     suffix_array_buffer: &mut [usize],
     text_metadata: &TextMetadata,
     text: &[C],
-) {
+) -> usize {
     let mut bucket_end_indices = bucket_end_indices_from_counts(&text_metadata.char_counts);
-
+    let mut num_lms_chars = 0;
     for (text_index, char) in text.iter().enumerate().skip(1) {
         if !is_lms_type(text_index, &text_metadata.is_s_type) {
             continue;
         }
+
+        num_lms_chars += 1;
 
         let bucket_end_index = &mut bucket_end_indices[char.rank()];
 
@@ -133,19 +139,20 @@ fn initialize_lms_indices_in_buckets<C: Character>(
         // (it is okay to keep zero, because it is never read again. might also just use underflowing function)
         *bucket_end_index = bucket_end_index.saturating_sub(1);
     }
+
+    num_lms_chars
 }
 
 // suffix_array_buffer should be initialized with all MAX
-fn initialize_lms_indices_and_induce<C: Character>(
+fn place_sorted_lms_indices_into_buckets<C: Character>(
     suffix_array_buffer: &mut [usize],
-    lms_indices: impl IntoIterator<Item = usize>,
+    lms_indices: &[usize],
     char_counts: &[usize],
-    is_s_type: &BitSlice,
     text: &[C],
 ) {
     let mut bucket_end_indices = bucket_end_indices_from_counts(char_counts);
 
-    for lms_char_index in lms_indices.into_iter() {
+    for &lms_char_index in lms_indices.iter().rev() {
         let lms_char = text[lms_char_index];
         let bucket_end_index = &mut bucket_end_indices[lms_char.rank()];
 
@@ -155,11 +162,82 @@ fn initialize_lms_indices_and_induce<C: Character>(
         // (it is okay to keep zero, because it is never read again. might also just use underflowing function)
         *bucket_end_index = bucket_end_index.saturating_sub(1);
     }
-
-    induce(suffix_array_buffer, char_counts, is_s_type, text);
 }
 
-fn induce<C: Character>(
+// after this, the sorted LMS indices (by LMS substrings) are at the end of suffix_array_buffer
+fn induce_to_sort_lms_substrings<C: Character>(
+    suffix_array_buffer: &mut [usize],
+    char_counts: &[usize],
+    is_s_type: &BitSlice,
+    text: &[C],
+) {
+    // ---------- LEFT TO RIGHT SCAN ----------
+    let mut bucket_start_indices = bucket_start_indices_from_counts(char_counts);
+
+    // virtual sentinel induction, it would normally be at first position of the suffix array
+    let last_suffix_index = text.len() - 1;
+    let last_suffix_char = text[last_suffix_index];
+    let last_suffix_bucket_start_index = &mut bucket_start_indices[last_suffix_char.rank()];
+    suffix_array_buffer[*last_suffix_bucket_start_index] = last_suffix_index;
+    *last_suffix_bucket_start_index += 1;
+
+    for suffix_array_index in 0..suffix_array_buffer.len() {
+        let suffix_index = suffix_array_buffer[suffix_array_index];
+
+        if suffix_index == NONE_VALUE || suffix_index == 0 || is_s_type[suffix_index - 1] {
+            continue;
+        }
+
+        let induced_suffix_first_char = text[suffix_index - 1];
+        let induced_suffix_bucket_start_index =
+            &mut bucket_start_indices[induced_suffix_first_char.rank()];
+
+        suffix_array_buffer[*induced_suffix_bucket_start_index] = suffix_index - 1;
+        *induced_suffix_bucket_start_index += 1;
+    }
+
+    // ---------- RIGHT TO LEFT SCAN ----------
+
+    let mut write_index = suffix_array_buffer.len() - 1;
+    let mut bucket_end_indices = bucket_end_indices_from_counts(char_counts);
+    for suffix_array_read_index in (0..suffix_array_buffer.len()).rev() {
+        let suffix_index = suffix_array_buffer[suffix_array_read_index];
+
+        // no need to check for EMPTY_VALUE here, because in this iteration, every index of the suffix
+        // array buffer must have been written to before (L-type in previous scan, S-type in this one)
+        if suffix_index == 0 {
+            continue;
+        }
+
+        // the LMS suffixes only induce L-type suffixes, which we are not interested in
+        // instead, we prepare for creation of reduced text by moving all of the
+        // LMS indices to the back of the array (now sorted by LMS substrings)
+        if is_lms_type(suffix_index, is_s_type) {
+            suffix_array_buffer[write_index] = suffix_index;
+            write_index -= 1;
+            continue;
+        }
+
+        if !is_s_type[suffix_index - 1] {
+            continue;
+        }
+
+        let induced_suffix_first_char = text[suffix_index - 1];
+        let induced_suffix_bucket_end_index =
+            &mut bucket_end_indices[induced_suffix_first_char.rank()];
+
+        suffix_array_buffer[*induced_suffix_bucket_end_index] = suffix_index - 1;
+
+        // saturating sub used, because the last placement of the first bucket (index 0) otherwise might underflow
+        // (it is okay to keep zero, because it is never read again. might also just use underflowing function)
+        *induced_suffix_bucket_end_index = induced_suffix_bucket_end_index.saturating_sub(1);
+    }
+
+    // on the right to left scan, the sentinel does not induce anything,
+    // because the char before it is always L-type
+}
+
+fn induce_to_finalize_suffix_array<C: Character>(
     suffix_array_buffer: &mut [usize],
     char_counts: &[usize],
     is_s_type: &BitSlice,
@@ -217,50 +295,51 @@ fn induce<C: Character>(
     // because the char before it is always L-type
 }
 
-fn extract_sorted_lms_substring_indices(
-    is_s_type: &BitSlice,
-    suffix_array_buffer: &[usize],
-) -> Vec<usize> {
-    let mut lms_substring_indices = Vec::new();
-
-    for &suffix_index in suffix_array_buffer {
-        if suffix_index != 0 && is_lms_type(suffix_index, is_s_type) {
-            lms_substring_indices.push(suffix_index);
-        }
-    }
-
-    lms_substring_indices
-}
-
 struct ReducedText<'a> {
     data: &'a [usize],
     num_different_names: usize,
-    backtransformation_table: Vec<usize>,
+    backtransformation_table: &'a [usize],
 }
 
 // reduced text is written to the beginning of the suffix array buffer
+// expects suffix indices in suffix_array_buffer and LMS indices should be sorted according to
+// their LMS substrings (not necessarily according to their whole LMS suffixes)
 fn create_reduced_text<'a, C: Character>(
-    sorted_lms_substring_indices: &[usize],
+    num_lms_chars: usize,
     suffix_array_buffer: &'a mut [usize],
     is_s_type: &BitSlice,
     text: &[C],
-) -> ReducedText<'a> {
-    if sorted_lms_substring_indices.is_empty() {
-        return ReducedText {
-            data: &suffix_array_buffer[..0],
-            num_different_names: 0,
-            backtransformation_table: Vec::new(),
-        };
+) -> (ReducedText<'a>, &'a mut [usize]) {
+    if num_lms_chars == 0 {
+        return (
+            ReducedText {
+                data: &[],
+                num_different_names: 0,
+                backtransformation_table: &[],
+            },
+            suffix_array_buffer,
+        );
     }
 
-    suffix_array_buffer.fill(NONE_VALUE);
+    let (reduced_text_placement_buffer, rest_of_suffix_array_buffer) =
+        suffix_array_buffer.split_at_mut(text.len() / 2);
+
+    reduced_text_placement_buffer.fill(NONE_VALUE);
+
+    let start_of_lms_substring_indices = rest_of_suffix_array_buffer.len() - num_lms_chars;
+    let sorted_lms_substring_indices =
+        &mut rest_of_suffix_array_buffer[start_of_lms_substring_indices..];
+
     let mut current_name = 0;
 
     for index_of_sorted_lms_substring_indices in 0..sorted_lms_substring_indices.len() - 1 {
         let curr_lms_substring_index =
             sorted_lms_substring_indices[index_of_sorted_lms_substring_indices];
 
-        suffix_array_buffer[curr_lms_substring_index] = current_name;
+        // TODO write comment on why this is sound
+        let placement_index = curr_lms_substring_index >> 1;
+
+        reduced_text_placement_buffer[placement_index] = current_name;
 
         let next_lms_substring_index =
             sorted_lms_substring_indices[index_of_sorted_lms_substring_indices + 1];
@@ -275,27 +354,44 @@ fn create_reduced_text<'a, C: Character>(
         }
     }
 
-    suffix_array_buffer[*sorted_lms_substring_indices.last().unwrap()] = current_name;
+    let last_placement_index = *sorted_lms_substring_indices.last().unwrap() >> 1;
+    reduced_text_placement_buffer[last_placement_index] = current_name;
 
-    // given the position in the reduced text, return corresponding LMS substring index of original text
-    let mut backtransformation_table = vec![0; sorted_lms_substring_indices.len()];
+    // reuse lms substring buffer as backtransformation_table
+    let backtransformation_table = sorted_lms_substring_indices;
 
     let mut write_index = 0;
-    for read_index in 0..suffix_array_buffer.len() {
-        let maybe_lms_substring_name = suffix_array_buffer[read_index];
+    for read_index in 0..reduced_text_placement_buffer.len() {
+        let maybe_lms_substring_name = reduced_text_placement_buffer[read_index];
 
         if maybe_lms_substring_name != NONE_VALUE {
-            suffix_array_buffer[write_index] = maybe_lms_substring_name;
-            backtransformation_table[write_index] = read_index;
+            reduced_text_placement_buffer[write_index] = maybe_lms_substring_name;
+
+            // we need to undo the little shifting trick from above. there are two possiblities of where this entry
+            // could come from, so we have to test which one of them is the actual lms char.
+            // to avoid underflow for the index 0, we test the larger one.
+            let index_of_original_text = if is_lms_type((read_index << 1) + 1, is_s_type) {
+                (read_index << 1) + 1
+            } else {
+                read_index << 1
+            };
+
+            backtransformation_table[write_index] = index_of_original_text;
             write_index += 1;
         }
     }
 
-    ReducedText {
-        data: &suffix_array_buffer[..write_index],
-        num_different_names: current_name + 1,
-        backtransformation_table,
-    }
+    let (reduced_text_data, rest) = suffix_array_buffer.split_at_mut(num_lms_chars);
+    let (vacant_buffer, backtransformation_table) = rest.split_at_mut(rest.len() - num_lms_chars);
+
+    (
+        ReducedText {
+            data: reduced_text_data,
+            num_different_names: current_name + 1,
+            backtransformation_table,
+        },
+        vacant_buffer,
+    )
 }
 
 fn backtransform_into_original_text_lms_indices(
@@ -310,6 +406,7 @@ fn backtransform_into_original_text_lms_indices(
 }
 
 // assumes index > 0
+#[inline]
 fn is_lms_type(index: usize, is_s_type: &BitSlice) -> bool {
     is_s_type[index] && !is_s_type[index - 1]
 }

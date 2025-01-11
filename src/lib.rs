@@ -30,6 +30,7 @@ impl<C: Character> SaisBuilder<C> {
     }
 
     // if I ever remove bounds checks, this would become unsafe (then add checks and an unchecked method)
+    // TODO should this be part of the public API?
     pub fn with_max_char(&mut self, max_char: C) -> &mut Self {
         assert!(max_char.rank() < NONE_VALUE);
         self.max_char = Some(max_char);
