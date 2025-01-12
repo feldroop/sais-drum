@@ -18,38 +18,54 @@ pub fn suffix_array_induced_sort<C: Character>(
     text: &[C],
     max_char: C,
     suffix_array_buffer: &mut [usize],
+    extra_buffer: Option<&mut [usize]>,
 ) {
     if text.is_empty() {
         return;
     }
 
-    // TODO skip this scan in recursion
-    let TextMetadata {
-        is_s_type,
-        char_counts,
-    } = scan_for_counts_and_s_l_types(text, max_char);
+    // this buffer will contain the bucket_start_indices after being initialized with counts
+    // if extra_buffer is sufficient, this will actually stay empty
+    let mut bucket_indices_buffer1 = Vec::new();
+
+    let (char_counts, remaining_extra_buffer) = reuse_extra_buffer_or_allocate_owned(
+        &mut bucket_indices_buffer1,
+        extra_buffer,
+        max_char.rank() + 1,
+    );
+
+    // TODO maybe skip this scan in recursion
+    let is_s_type = scan_for_counts_and_s_l_types(text, char_counts);
+
+    let bucket_start_indices = char_counts;
+    counts_into_bucket_start_indices(bucket_start_indices);
 
     // varies between end and start indices, and is overwritten in LMS index placement and induction
-    let bucket_start_indices = counts_into_bucket_start_indices(char_counts);
+    let mut bucket_indices_buffer2 = Vec::new();
 
-    let mut bucket_indices_buffer = vec![0; bucket_start_indices.len()];
+    let (bucket_indices_working_buffer, vacant_buffer1) = reuse_extra_buffer_or_allocate_owned(
+        &mut bucket_indices_buffer2,
+        remaining_extra_buffer,
+        max_char.rank() + 1,
+    );
+
     write_bucket_end_indices_into_buffer(
-        &bucket_start_indices,
-        &mut bucket_indices_buffer,
+        bucket_start_indices,
+        bucket_indices_working_buffer,
         text.len(),
     );
 
     let num_lms_chars = place_text_order_lms_indices_into_buckets(
         suffix_array_buffer,
-        &mut bucket_indices_buffer,
+        bucket_indices_working_buffer,
         &is_s_type,
         text,
     );
 
     induce_to_sort_lms_substrings(
         suffix_array_buffer,
-        &bucket_start_indices,
-        &mut bucket_indices_buffer,
+        bucket_start_indices,
+        bucket_indices_working_buffer,
         &is_s_type,
         text,
     );
@@ -61,20 +77,21 @@ pub fn suffix_array_induced_sort<C: Character>(
 
     // put reduced suffix array buffer at the end of the buffer instead of the middle,
     // this make the implementation later a bit simpler (when placing sorted LMS indices into buckets)
-    let (vacant_buffer, reduced_text_suffix_array_buffer) =
+    let (vacant_buffer2, reduced_text_suffix_array_buffer) =
         rest.split_at_mut(rest.len() - num_lms_chars);
 
     if num_different_names == num_lms_chars {
-        // base case of recursion. this works, because the reduced text exclusively contains unique characters
-        for (reduced_text_suffix_index, &reduced_text_char) in reduced_text.iter().enumerate() {
-            reduced_text_suffix_array_buffer[reduced_text_char] = reduced_text_suffix_index;
-        }
+        directly_construct_suffix_array(reduced_text, reduced_text_suffix_array_buffer);
     } else {
         reduced_text_suffix_array_buffer.fill(NONE_VALUE);
+
+        let larger_vacant_buffer = choose_larger_vacant_buffer(vacant_buffer1, vacant_buffer2);
+
         suffix_array_induced_sort(
             reduced_text,
             num_different_names - 1,
             reduced_text_suffix_array_buffer,
+            Some(larger_vacant_buffer),
         );
     };
 
@@ -94,28 +111,21 @@ pub fn suffix_array_induced_sort<C: Character>(
     place_sorted_lms_indices_into_buckets(
         suffix_array_buffer,
         num_lms_chars,
-        &bucket_start_indices,
-        &mut bucket_indices_buffer,
+        bucket_start_indices,
+        bucket_indices_working_buffer,
         text,
     );
 
     induce_to_finalize_suffix_array(
         suffix_array_buffer,
-        &bucket_start_indices,
-        &mut bucket_indices_buffer,
+        bucket_start_indices,
+        bucket_indices_working_buffer,
         &is_s_type,
         text,
     );
 }
 
-struct TextMetadata {
-    is_s_type: BitVec,
-    char_counts: Vec<usize>,
-}
-
-fn scan_for_counts_and_s_l_types<C: Character>(text: &[C], max_char: C) -> TextMetadata {
-    let num_different_characters = max_char.rank() + 1;
-    let mut char_counts = vec![0; num_different_characters];
+fn scan_for_counts_and_s_l_types<C: Character>(text: &[C], char_counts: &mut [usize]) -> BitVec {
     let mut is_s_type = BitVec::repeat(true, text.len() + 1);
 
     // sentinel is by definiton S-type and the smallest character
@@ -139,10 +149,7 @@ fn scan_for_counts_and_s_l_types<C: Character>(text: &[C], max_char: C) -> TextM
         current_char_compared_to_previous = text[text_index - 1].cmp(&text[text_index])
     }
 
-    TextMetadata {
-        is_s_type,
-        char_counts,
-    }
+    is_s_type
 }
 
 // returns number of lms chars, without sentinel
@@ -412,6 +419,16 @@ fn create_reduced_text<C: Character>(
     current_name + 1
 }
 
+// base case of recursion. this works, because the reduced text exclusively contains unique characters
+fn directly_construct_suffix_array(
+    reduced_text: &mut [usize],
+    reduced_text_suffix_array_buffer: &mut [usize],
+) {
+    for (reduced_text_suffix_index, &reduced_text_char) in reduced_text.iter().enumerate() {
+        reduced_text_suffix_array_buffer[reduced_text_char] = reduced_text_suffix_index;
+    }
+}
+
 fn create_backtransformation_table(backtransformation_table: &mut [usize], is_s_type: &BitSlice) {
     let mut write_index = 0;
 
@@ -438,8 +455,24 @@ fn is_lms_type(index: usize, is_s_type: &BitSlice) -> bool {
     is_s_type[index] && !is_s_type[index - 1]
 }
 
+// returns (a,b) where a is a buffer of length num_buckets with all values set to 0 and b maybe another buffer
+fn reuse_extra_buffer_or_allocate_owned<'a>(
+    owned_buffer: &'a mut Vec<usize>,
+    extra_buffer: Option<&'a mut [usize]>,
+    num_buckets: usize,
+) -> (&'a mut [usize], Option<&'a mut [usize]>) {
+    if extra_buffer.is_some() && extra_buffer.as_ref().unwrap().len() >= num_buckets {
+        let (buffer, rest) = extra_buffer.unwrap().split_at_mut(num_buckets);
+        buffer.fill(0);
+        return (buffer, Some(rest));
+    }
+
+    owned_buffer.resize(num_buckets, 0);
+    (owned_buffer, extra_buffer)
+}
+
 // inclusive index, the virtual bucket of the sentinel (count 1, ends at 0) is NOT included
-fn counts_into_bucket_start_indices(mut char_counts: Vec<usize>) -> Vec<usize> {
+fn counts_into_bucket_start_indices(char_counts: &mut [usize]) {
     let mut sum = 0;
 
     for value in char_counts.iter_mut() {
@@ -447,8 +480,6 @@ fn counts_into_bucket_start_indices(mut char_counts: Vec<usize>) -> Vec<usize> {
         sum += *value;
         *value = temp;
     }
-
-    char_counts // now bucket_start_indices
 }
 
 // inclusive index, except for empty buckets, there the end index is the start index - 1
@@ -477,6 +508,19 @@ fn write_bucket_end_indices_into_buffer(
     } else {
         text_len - 2
     };
+}
+
+fn choose_larger_vacant_buffer<'a>(
+    vacant_buffer1: Option<&'a mut [usize]>,
+    vacant_buffer2: &'a mut [usize],
+) -> &'a mut [usize] {
+    if let Some(vacant_buffer1) = vacant_buffer1 {
+        cmp::max_by(vacant_buffer1, vacant_buffer2, |buf1, buf2| {
+            buf1.len().cmp(&buf2.len())
+        })
+    } else {
+        vacant_buffer2
+    }
 }
 
 // this assumes, that the two given indices are different. otherwise it might return true

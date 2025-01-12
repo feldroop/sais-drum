@@ -41,12 +41,17 @@ impl<C: Character> SaisBuilder<C> {
         assert_eq!(text.len(), suffix_array_buffer.len());
         suffix_array_buffer.fill(NONE_VALUE);
 
-        algorithm::suffix_array_induced_sort(text, self.get_max_char(), suffix_array_buffer);
+        algorithm::suffix_array_induced_sort(text, self.get_max_char(), suffix_array_buffer, None);
     }
 
     pub fn construct_suffix_array(&self, text: &[C]) -> Vec<usize> {
         let mut suffix_array_buffer = vec![algorithm::NONE_VALUE; text.len()];
-        algorithm::suffix_array_induced_sort(text, self.get_max_char(), &mut suffix_array_buffer);
+        algorithm::suffix_array_induced_sort(
+            text,
+            self.get_max_char(),
+            &mut suffix_array_buffer,
+            None,
+        );
 
         suffix_array_buffer
     }

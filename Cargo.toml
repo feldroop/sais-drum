@@ -13,6 +13,6 @@ lipsum = "0.9"
 rand = "0.8.5"
 criterion = "0.5.1"
 
-# optimize code for faster proptesting
+# optimize code for faster proptesting (needs to be removed when debugging tests)
 [profile.test]
 opt-level = 3
