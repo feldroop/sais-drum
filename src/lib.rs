@@ -39,7 +39,6 @@ impl<C: Character> SaisBuilder<C> {
 
     pub fn construct_suffix_array_inplace(&self, text: &[C], suffix_array_buffer: &mut [usize]) {
         assert_eq!(text.len(), suffix_array_buffer.len());
-        // TODO maybe I can do this filling later, more efficiently
         suffix_array_buffer.fill(NONE_VALUE);
 
         algorithm::suffix_array_induced_sort(text, self.get_max_char(), suffix_array_buffer);
