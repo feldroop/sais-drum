@@ -6,3 +6,5 @@
 # everyone who runs the test benefits from these saved cases.
 cc 777f667fc6b866fc2233b6b9dc5b16bd49b352e100a7a17e7e45181653ef312a # shrinks to text = [4, 0, 1]
 cc ab609364fec7b0dd3431a28049af34e36e24f6e1aec576aecbafdec00bee45db # shrinks to text = [30, 29, 115, 29, 115]
+cc f641c00f4c372a03dea2c8e6312d13147dae26ca434cefb9690d44ce1759c560 # shrinks to text = [0, 1]
+cc 35c26131f639fe348aace4f8f274f2f85d6eb5b2201c24c061a709f7d46eef27 # shrinks to text = [98, 1, 2]
