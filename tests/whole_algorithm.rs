@@ -126,7 +126,7 @@ proptest! {
 
     #[test]
     fn correctness_lorem_ipsum_tests(
-        text in (0..300usize).prop_map(|num_words|lipsum_words_with_rng(rand::thread_rng(), num_words))
+        text in (0..300usize).prop_map(|num_words| lipsum_words_with_rng(rand::thread_rng(), num_words))
     ) {
         let maybe_suffix_array = SaisBuilder::new().construct_suffix_array(text.as_bytes());
         prop_assert!(is_suffix_array(&maybe_suffix_array, text.as_bytes()));

@@ -305,8 +305,6 @@ fn induce_to_finalize_suffix_array<C: Character>(
     // ---------- LEFT TO RIGHT SCAN ----------
     bucket_indices_buffer.copy_from_slice(bucket_start_indices);
 
-    println!("{suffix_array_buffer:?}");
-
     // virtual sentinel induction, it would normally be at first position of the suffix array
     let last_suffix_index = text.len() - 1;
     let last_suffix_char = text[last_suffix_index];
