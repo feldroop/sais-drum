@@ -11,8 +11,22 @@ num-traits = "0.2.19"
 proptest = "1.6.0"
 lipsum = "0.9"
 rand = "0.8.5"
+rand_chacha = "0.3.1"
 criterion = "0.5.1"
+divsufsort = "2.0.0"
 
 # optimize code for faster proptesting (needs to be removed when debugging tests)
 [profile.test]
 opt-level = 3
+
+# use criterion benchmark harness exclusively
+[lib]
+bench = false
+
+[[bench]]
+name = "whole_algorithm"
+harness = false
+
+[[bench]]
+name = "individual_steps"
+harness = false
