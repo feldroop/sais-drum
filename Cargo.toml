@@ -1,7 +1,7 @@
 [package]
 name = "sais_drum"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 bitvec = "1"
@@ -10,8 +10,8 @@ num-traits = "0.2.19"
 [dev-dependencies]
 proptest = "1.6.0"
 lipsum = "0.9"
-rand = "0.8.5"
-rand_chacha = "0.3.1"
+rand = "0.9.0"
+rand_chacha = "0.9.0"
 criterion = "0.5.1"
 divsufsort = "2.0.0"
 
