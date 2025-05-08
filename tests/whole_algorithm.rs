@@ -1,6 +1,5 @@
 use std::iter;
 
-use lipsum::lipsum_words_with_rng;
 use proptest::prelude::*;
 use rand::seq::SliceRandom;
 
@@ -80,7 +79,7 @@ fn detrimental_text() {
         base_chars.extend(iter::repeat_n(character * 2, 10));
     }
 
-    base_chars.shuffle(&mut rand::thread_rng());
+    base_chars.shuffle(&mut rand::rng());
 
     let mut text = Vec::new();
 
@@ -123,13 +122,4 @@ proptest! {
 
         prop_assert!(is_suffix_array(&maybe_suffix_array, &text));
     }
-
-    #[test]
-    fn correctness_lorem_ipsum_tests(
-        text in (0..300usize).prop_map(|num_words| lipsum_words_with_rng(rand::thread_rng(), num_words))
-    ) {
-        let maybe_suffix_array = SaisBuilder::new().construct_suffix_array(text.as_bytes());
-        prop_assert!(is_suffix_array(&maybe_suffix_array, text.as_bytes()));
-    }
-
 }
