@@ -70,15 +70,20 @@ pub fn suffix_array_induced_sort<C: Character>(
         text,
     );
 
+    // move sorted lms indices to front of the buffer
+    let (rest, lms_indices) =
+        suffix_array_buffer.split_at_mut(suffix_array_buffer.len() - num_lms_chars);
+    rest[..num_lms_chars].copy_from_slice(lms_indices);
+
     let num_different_names =
         create_reduced_text(num_lms_chars, suffix_array_buffer, &is_s_type, text);
 
-    let (reduced_text, rest) = suffix_array_buffer.split_at_mut(num_lms_chars);
+    let (rest, reduced_text) =
+        suffix_array_buffer.split_at_mut(suffix_array_buffer.len() - num_lms_chars);
 
     // put reduced suffix array buffer at the end of the buffer instead of the middle,
     // this make the implementation later a bit simpler (when placing sorted LMS indices into buckets)
-    let (vacant_buffer2, reduced_text_suffix_array_buffer) =
-        rest.split_at_mut(rest.len() - num_lms_chars);
+    let (reduced_text_suffix_array_buffer, vacant_buffer2) = rest.split_at_mut(num_lms_chars);
 
     if num_different_names == num_lms_chars {
         directly_construct_suffix_array(reduced_text, reduced_text_suffix_array_buffer);
@@ -102,11 +107,6 @@ pub fn suffix_array_induced_sort<C: Character>(
         reduced_text_suffix_array_buffer,
         backtransformation_table,
     );
-
-    // TODO optimize this away (probably after inducing optimizations)
-    // the sorted lms indices should be at the front of the suffix_array_buffer,
-    // then this copying would not be necessary
-    backtransformation_table.copy_from_slice(reduced_text_suffix_array_buffer);
 
     place_sorted_lms_indices_into_buckets(
         suffix_array_buffer,
@@ -205,6 +205,7 @@ fn place_sorted_lms_indices_into_buckets<C: Character>(
     }
 
     // fill the rest of the array with NONE_VALUE
+    // TODO maybe this could be implemented more efficiently by also doing it in the above loop
     for (&bucket_start_index, &mut bucket_end_index_after_lms_placement) in
         bucket_start_indices.iter().zip(bucket_indices_buffer)
     {
@@ -354,8 +355,8 @@ fn induce_to_finalize_suffix_array<C: Character>(
     // because the char before it is always L-type
 }
 
-// reduced text is written to the beginning of the suffix array buffer
-// expects suffix indices in suffix_array_buffer and LMS indices should be sorted according to
+// reduced text is written to the end of the suffix array buffer
+// LMS indices at front of input suffix_array_buffer should be sorted according to
 // their LMS substrings (not necessarily according to their whole LMS suffixes)
 // returns number of different names in the text
 fn create_reduced_text<C: Character>(
@@ -368,15 +369,12 @@ fn create_reduced_text<C: Character>(
         return 0;
     }
 
-    let (reduced_text_placement_buffer, rest_of_suffix_array_buffer) =
+    let (rest_of_suffix_array_buffer, reduced_text_placement_buffer) =
         suffix_array_buffer.split_at_mut(text.len() / 2);
 
     reduced_text_placement_buffer.fill(NONE_VALUE);
 
-    let start_of_lms_substring_indices = rest_of_suffix_array_buffer.len() - num_lms_chars;
-    let sorted_lms_substring_indices =
-        &mut rest_of_suffix_array_buffer[start_of_lms_substring_indices..];
-
+    let sorted_lms_substring_indices = &mut rest_of_suffix_array_buffer[..num_lms_chars];
     let mut current_name = 0;
 
     for index_of_sorted_lms_substring_indices in 0..sorted_lms_substring_indices.len() - 1 {
@@ -404,13 +402,13 @@ fn create_reduced_text<C: Character>(
     let last_placement_index = *sorted_lms_substring_indices.last().unwrap() >> 1;
     reduced_text_placement_buffer[last_placement_index] = current_name;
 
-    let mut write_index = 0;
-    for read_index in 0..reduced_text_placement_buffer.len() {
+    let mut write_index = reduced_text_placement_buffer.len() - 1;
+    for read_index in (0..reduced_text_placement_buffer.len()).rev() {
         let maybe_lms_substring_name = reduced_text_placement_buffer[read_index];
 
         if maybe_lms_substring_name != NONE_VALUE {
             reduced_text_placement_buffer[write_index] = maybe_lms_substring_name;
-            write_index += 1;
+            write_index -= 1;
         }
     }
 
