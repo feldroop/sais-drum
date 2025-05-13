@@ -52,15 +52,12 @@ pub fn induce_to_sort_lms_substrings<C: Character>(
             continue;
         }
 
-        let induced_suffix_first_char = text[suffix_index - 1];
-        let induced_suffix_bucket_end_index =
-            &mut bucket_indices_buffer[induced_suffix_first_char.rank()];
-
-        suffix_array_buffer[*induced_suffix_bucket_end_index] = suffix_index - 1;
-
-        // saturating sub used, because the last placement of the first bucket (index 0) otherwise might underflow
-        // (it is okay to keep zero, because it is never read again. might also just use underflowing function)
-        *induced_suffix_bucket_end_index = induced_suffix_bucket_end_index.saturating_sub(1);
+        induce_s_type(
+            suffix_index - 1,
+            suffix_array_buffer,
+            bucket_indices_buffer,
+            text,
+        );
     }
 
     // on the right to left scan, the sentinel does not induce anything,
@@ -99,15 +96,12 @@ pub fn induce_to_finalize_suffix_array<C: Character>(
             continue;
         }
 
-        let induced_suffix_first_char = text[suffix_index - 1];
-        let induced_suffix_bucket_end_index =
-            &mut bucket_indices_buffer[induced_suffix_first_char.rank()];
-
-        suffix_array_buffer[*induced_suffix_bucket_end_index] = suffix_index - 1;
-
-        // saturating sub used, because the last placement of the first bucket (index 0) otherwise might underflow
-        // (it is okay to keep zero, because it is never read again. might also just use underflowing function)
-        *induced_suffix_bucket_end_index = induced_suffix_bucket_end_index.saturating_sub(1);
+        induce_s_type(
+            suffix_index - 1,
+            suffix_array_buffer,
+            bucket_indices_buffer,
+            text,
+        );
     }
 
     // on the right to left scan, the sentinel does not induce anything,
@@ -164,4 +158,21 @@ fn induce_l_type<C: Character>(
 
     suffix_array_buffer[*induced_suffix_bucket_start_index] = target_suffix_index;
     *induced_suffix_bucket_start_index += 1;
+}
+
+fn induce_s_type<C: Character>(
+    target_suffix_index: usize,
+    suffix_array_buffer: &mut [usize],
+    bucket_indices_buffer: &mut [usize],
+    text: &[C],
+) {
+    let induced_suffix_first_char = text[target_suffix_index];
+    let induced_suffix_bucket_end_index =
+        &mut bucket_indices_buffer[induced_suffix_first_char.rank()];
+
+    suffix_array_buffer[*induced_suffix_bucket_end_index] = target_suffix_index;
+
+    // saturating sub used, because the last placement of the first bucket (index 0) otherwise might underflow
+    // (it is okay to keep zero, because it is never read again. might also just use underflowing function)
+    *induced_suffix_bucket_end_index = induced_suffix_bucket_end_index.saturating_sub(1);
 }
