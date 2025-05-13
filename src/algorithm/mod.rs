@@ -1,16 +1,14 @@
 // #[cfg(test)]
 // mod tests;
 
+mod buckets;
 mod inducing;
 
 use crate::Character;
 
 use bitvec::prelude::*;
 
-use std::{
-    cmp::{self, Ordering},
-    iter,
-};
+use std::cmp::{self, Ordering};
 
 // the text must always be smaller than this value
 pub(crate) const NONE_VALUE: usize = usize::MAX;
@@ -43,7 +41,7 @@ pub fn suffix_array_induced_sort<C: Character>(
     let is_s_type = scan_for_counts_and_s_l_types(text, char_counts);
 
     let bucket_start_indices = char_counts;
-    counts_into_bucket_start_indices(bucket_start_indices);
+    buckets::counts_into_bucket_start_indices(bucket_start_indices);
 
     // varies between end and start indices, and is overwritten in LMS index placement and induction
     let mut bucket_indices_buffer2 = Vec::new();
@@ -54,7 +52,7 @@ pub fn suffix_array_induced_sort<C: Character>(
         max_char.rank() + 1,
     );
 
-    write_bucket_end_indices_into_buffer(
+    buckets::write_bucket_end_indices_into_buffer(
         bucket_start_indices,
         bucket_indices_working_buffer,
         text.len(),
@@ -95,7 +93,8 @@ pub fn suffix_array_induced_sort<C: Character>(
     } else {
         reduced_text_suffix_array_buffer.fill(NONE_VALUE);
 
-        let larger_vacant_buffer = choose_larger_vacant_buffer(vacant_buffer1, vacant_buffer2);
+        let larger_vacant_buffer =
+            buckets::choose_larger_vacant_buffer(vacant_buffer1, vacant_buffer2);
 
         suffix_array_induced_sort(
             reduced_text,
@@ -193,7 +192,11 @@ fn place_sorted_lms_indices_into_buckets<C: Character>(
     bucket_indices_buffer: &mut [usize],
     text: &[C],
 ) {
-    write_bucket_end_indices_into_buffer(bucket_start_indices, bucket_indices_buffer, text.len());
+    buckets::write_bucket_end_indices_into_buffer(
+        bucket_start_indices,
+        bucket_indices_buffer,
+        text.len(),
+    );
 
     // this works, because the sorted LMS indices are sorted, have the same order in the full
     // suffix_array_buffer as they have before (the sorted order!), i.e. we won't override
@@ -336,82 +339,6 @@ fn reuse_extra_buffer_or_allocate_owned<'a>(
 
     owned_buffer.resize(num_buckets, 0);
     (owned_buffer, extra_buffer)
-}
-
-// inclusive index, the virtual bucket of the sentinel (count 1, ends at 0) is NOT included
-fn counts_into_bucket_start_indices(char_counts: &mut [usize]) {
-    let mut sum = 0;
-
-    for value in char_counts.iter_mut() {
-        let temp = sum;
-        sum += *value;
-        *value = temp;
-    }
-}
-
-// inclusive index, except for empty buckets, there the end index is the start index - 1
-// the virtual bucket of the sentinel (count 1, ends at 0) is NOT included
-// overwrites given bucket end indices buffer
-fn write_bucket_end_indices_into_buffer(
-    bucket_start_indices: &[usize],
-    bucket_indices_buffer: &mut [usize],
-    text_len: usize,
-) {
-    for (bucket_end_index, bucket_buffer_position) in
-        iter_bucket_end_indices(bucket_start_indices, text_len).zip(bucket_indices_buffer)
-    {
-        *bucket_buffer_position = bucket_end_index;
-    }
-}
-
-fn iter_bucket_end_indices(
-    bucket_start_indices: &[usize],
-    text_len: usize,
-) -> impl Iterator<Item = usize> {
-    // edge case for when the last character does not appear in the text
-    let num_buckets = bucket_start_indices.len();
-    let last_bucket_end_index = if text_len == 1
-        || num_buckets == 1
-        || bucket_start_indices[num_buckets - 1] != bucket_start_indices[num_buckets - 2]
-    {
-        text_len - 1
-    } else {
-        text_len - 2
-    };
-
-    bucket_start_indices[1..]
-        .iter()
-        .map(|next_bucket_start_index| next_bucket_start_index.wrapping_sub(1))
-        .chain(iter::once(last_bucket_end_index))
-}
-
-// iterates over the borders of the buckets in the form of [start, one_behind_end)
-fn iter_bucket_borders(
-    bucket_start_indices: &[usize],
-    text_len: usize,
-) -> impl Iterator<Item = (usize, usize)> {
-    let next_bucket_start_indices = bucket_start_indices[1..]
-        .iter()
-        .copied()
-        .chain(iter::once(text_len));
-
-    bucket_start_indices
-        .iter()
-        .copied()
-        .zip(next_bucket_start_indices)
-}
-
-fn choose_larger_vacant_buffer<'a>(
-    vacant_buffer1: Option<&'a mut [usize]>,
-    vacant_buffer2: &'a mut [usize],
-) -> &'a mut [usize] {
-    if let Some(vacant_buffer1) = vacant_buffer1 {
-        cmp::max_by(vacant_buffer1, vacant_buffer2, |buf1, buf2| {
-            buf1.len().cmp(&buf2.len())
-        })
-    } else {
-        vacant_buffer2
-    }
 }
 
 // this assumes, that the two given indices are different. otherwise it might return true

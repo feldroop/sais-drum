@@ -1,5 +1,9 @@
-use super::{is_lms_type, iter_bucket_borders, write_bucket_end_indices_into_buffer};
+use super::buckets::{
+    iter_bucket_borders, iter_bucket_borders_rev, write_bucket_end_indices_into_buffer,
+};
+use super::is_lms_type;
 use crate::{Character, NONE_VALUE};
+
 use bitvec::slice::BitSlice;
 
 // after this, the sorted LMS indices (by LMS substrings) are at the end of suffix_array_buffer
@@ -10,7 +14,6 @@ pub fn induce_to_sort_lms_substrings<C: Character>(
     is_s_type: &BitSlice,
     text: &[C],
 ) {
-    // ---------- LEFT TO RIGHT SCAN ----------
     bucket_indices_buffer.copy_from_slice(bucket_start_indices);
 
     induce_from_virtual_sentinel(suffix_array_buffer, bucket_indices_buffer, text);
@@ -25,38 +28,17 @@ pub fn induce_to_sort_lms_substrings<C: Character>(
         );
     }
 
-    // ---------- RIGHT TO LEFT SCAN ----------
     write_bucket_end_indices_into_buffer(bucket_start_indices, bucket_indices_buffer, text.len());
 
     let mut write_index = suffix_array_buffer.len() - 1;
-
-    for suffix_array_read_index in (0..suffix_array_buffer.len()).rev() {
-        let suffix_index = suffix_array_buffer[suffix_array_read_index];
-
-        // no need to check for EMPTY_VALUE here, because in this iteration, every index of the suffix
-        // array buffer must have been written to before (L-type in previous scan, S-type in this one)
-        if suffix_index == 0 {
-            continue;
-        }
-
-        // the LMS suffixes only induce L-type suffixes, which we are not interested in
-        // instead, we prepare for creation of reduced text by moving all of the
-        // LMS indices to the back of the array (now sorted by LMS substrings)
-        if is_lms_type(suffix_index, is_s_type) {
-            suffix_array_buffer[write_index] = suffix_index;
-            write_index -= 1;
-            continue;
-        }
-
-        if !is_s_type[suffix_index - 1] {
-            continue;
-        }
-
-        induce_s_type(
-            suffix_index - 1,
+    for (start, end) in iter_bucket_borders_rev(bucket_start_indices, text.len()) {
+        induce_range_right_to_left_and_write_lms_indices_to_end(
+            start..end,
             suffix_array_buffer,
             bucket_indices_buffer,
+            is_s_type,
             text,
+            &mut write_index,
         );
     }
 
@@ -71,41 +53,49 @@ pub fn induce_to_finalize_suffix_array<C: Character>(
     is_s_type: &BitSlice,
     text: &[C],
 ) {
-    // ---------- LEFT TO RIGHT SCAN ----------
     bucket_indices_buffer.copy_from_slice(bucket_start_indices);
 
     induce_from_virtual_sentinel(suffix_array_buffer, bucket_indices_buffer, text);
 
-    induce_range_left_to_right(
-        0..suffix_array_buffer.len(),
-        suffix_array_buffer,
-        bucket_indices_buffer,
-        is_s_type,
-        text,
-    );
-
-    // ---------- RIGHT TO LEFT SCAN ----------
-    write_bucket_end_indices_into_buffer(bucket_start_indices, bucket_indices_buffer, text.len());
-
-    for suffix_array_index in (0..suffix_array_buffer.len()).rev() {
-        let suffix_index = suffix_array_buffer[suffix_array_index];
-
-        // no need to check for EMPTY_VALUE here, because in this iteration, every index of the suffix
-        // array buffer must have been written to before (L-type in previous scan, S-type in this one)
-        if suffix_index == 0 || !is_s_type[suffix_index - 1] {
-            continue;
-        }
-
-        induce_s_type(
-            suffix_index - 1,
+    for (start, end) in iter_bucket_borders(bucket_start_indices, text.len()) {
+        induce_range_left_to_right(
+            start..end,
             suffix_array_buffer,
             bucket_indices_buffer,
+            is_s_type,
+            text,
+        );
+    }
+
+    write_bucket_end_indices_into_buffer(bucket_start_indices, bucket_indices_buffer, text.len());
+
+    for (start, end) in iter_bucket_borders_rev(bucket_start_indices, text.len()) {
+        induce_range_right_to_left(
+            start..end,
+            suffix_array_buffer,
+            bucket_indices_buffer,
+            is_s_type,
             text,
         );
     }
 
     // on the right to left scan, the sentinel does not induce anything,
     // because the char before it is always L-type
+}
+
+// the virtual sentinel would normally be at first position of the suffix array
+fn induce_from_virtual_sentinel<C: Character>(
+    suffix_array_buffer: &mut [usize],
+    bucket_indices_buffer: &mut [usize],
+    text: &[C],
+) {
+    let last_suffix_index = text.len() - 1;
+    induce_l_type(
+        last_suffix_index,
+        suffix_array_buffer,
+        bucket_indices_buffer,
+        text,
+    );
 }
 
 fn induce_range_left_to_right<C: Character>(
@@ -131,19 +121,70 @@ fn induce_range_left_to_right<C: Character>(
     }
 }
 
-// the virtual sentinel would normally be at first position of the suffix array
-fn induce_from_virtual_sentinel<C: Character>(
+// rev() will be called on the index range
+fn induce_range_right_to_left<C: Character>(
+    index_range: impl DoubleEndedIterator<Item = usize>,
     suffix_array_buffer: &mut [usize],
     bucket_indices_buffer: &mut [usize],
+    is_s_type: &BitSlice,
     text: &[C],
 ) {
-    let last_suffix_index = text.len() - 1;
-    induce_l_type(
-        last_suffix_index,
-        suffix_array_buffer,
-        bucket_indices_buffer,
-        text,
-    );
+    for suffix_array_index in index_range.rev() {
+        let suffix_index = suffix_array_buffer[suffix_array_index];
+
+        // no need to check for EMPTY_VALUE here, because in this iteration, every index of the suffix
+        // array buffer must have been written to before (L-type in previous scan, S-type in this one)
+        if suffix_index == 0 || !is_s_type[suffix_index - 1] {
+            continue;
+        }
+
+        induce_s_type(
+            suffix_index - 1,
+            suffix_array_buffer,
+            bucket_indices_buffer,
+            text,
+        );
+    }
+}
+
+// rev() will be called on the index range
+fn induce_range_right_to_left_and_write_lms_indices_to_end<C: Character>(
+    index_range: impl DoubleEndedIterator<Item = usize>,
+    suffix_array_buffer: &mut [usize],
+    bucket_indices_buffer: &mut [usize],
+    is_s_type: &BitSlice,
+    text: &[C],
+    write_index: &mut usize,
+) {
+    for suffix_array_index in index_range.rev() {
+        let suffix_index = suffix_array_buffer[suffix_array_index];
+
+        // no need to check for EMPTY_VALUE here, because in this iteration, every index of the suffix
+        // array buffer must have been written to before (L-type in previous scan, S-type in this one)
+        if suffix_index == 0 {
+            continue;
+        }
+
+        // the LMS suffixes only induce L-type suffixes, which we are not interested in
+        // instead, we prepare for creation of reduced text by moving all of the
+        // LMS indices to the back of the array (now sorted by LMS substrings)
+        if is_lms_type(suffix_index, is_s_type) {
+            suffix_array_buffer[*write_index] = suffix_index;
+            *write_index -= 1;
+            continue;
+        }
+
+        if !is_s_type[suffix_index - 1] {
+            continue;
+        }
+
+        induce_s_type(
+            suffix_index - 1,
+            suffix_array_buffer,
+            bucket_indices_buffer,
+            text,
+        );
+    }
 }
 
 fn induce_l_type<C: Character>(
