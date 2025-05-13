@@ -114,19 +114,6 @@ pub fn induce_to_finalize_suffix_array<C: Character>(
     // because the char before it is always L-type
 }
 
-// the virtual sentinel would normally be at first position of the suffix array
-fn induce_from_virtual_sentinel<C: Character>(
-    suffix_array_buffer: &mut [usize],
-    bucket_indices_buffer: &mut [usize],
-    text: &[C],
-) {
-    let last_suffix_index = text.len() - 1;
-    let last_suffix_char = text[last_suffix_index];
-    let last_suffix_bucket_start_index = &mut bucket_indices_buffer[last_suffix_char.rank()];
-    suffix_array_buffer[*last_suffix_bucket_start_index] = last_suffix_index;
-    *last_suffix_bucket_start_index += 1;
-}
-
 fn induce_range_left_to_right<C: Character>(
     index_range: impl Iterator<Item = usize>,
     suffix_array_buffer: &mut [usize],
@@ -141,11 +128,40 @@ fn induce_range_left_to_right<C: Character>(
             continue;
         }
 
-        let induced_suffix_first_char = text[suffix_index - 1];
-        let induced_suffix_bucket_start_index =
-            &mut bucket_indices_buffer[induced_suffix_first_char.rank()];
-
-        suffix_array_buffer[*induced_suffix_bucket_start_index] = suffix_index - 1;
-        *induced_suffix_bucket_start_index += 1;
+        induce_l_type(
+            suffix_index - 1,
+            suffix_array_buffer,
+            bucket_indices_buffer,
+            text,
+        );
     }
+}
+
+// the virtual sentinel would normally be at first position of the suffix array
+fn induce_from_virtual_sentinel<C: Character>(
+    suffix_array_buffer: &mut [usize],
+    bucket_indices_buffer: &mut [usize],
+    text: &[C],
+) {
+    let last_suffix_index = text.len() - 1;
+    induce_l_type(
+        last_suffix_index,
+        suffix_array_buffer,
+        bucket_indices_buffer,
+        text,
+    );
+}
+
+fn induce_l_type<C: Character>(
+    target_suffix_index: usize,
+    suffix_array_buffer: &mut [usize],
+    bucket_indices_buffer: &mut [usize],
+    text: &[C],
+) {
+    let induced_suffix_first_char = text[target_suffix_index];
+    let induced_suffix_bucket_start_index =
+        &mut bucket_indices_buffer[induced_suffix_first_char.rank()];
+
+    suffix_array_buffer[*induced_suffix_bucket_start_index] = target_suffix_index;
+    *induced_suffix_bucket_start_index += 1;
 }
