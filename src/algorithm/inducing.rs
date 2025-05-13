@@ -13,27 +13,15 @@ pub fn induce_to_sort_lms_substrings<C: Character>(
     // ---------- LEFT TO RIGHT SCAN ----------
     bucket_indices_buffer.copy_from_slice(bucket_start_indices);
 
-    // virtual sentinel induction, it would normally be at first position of the suffix array
-    let last_suffix_index = text.len() - 1;
-    let last_suffix_char = text[last_suffix_index];
-    let last_suffix_bucket_start_index = &mut bucket_indices_buffer[last_suffix_char.rank()];
-    suffix_array_buffer[*last_suffix_bucket_start_index] = last_suffix_index;
-    *last_suffix_bucket_start_index += 1;
+    induce_from_virtual_sentinel(suffix_array_buffer, bucket_indices_buffer, text);
 
-    for suffix_array_index in 0..suffix_array_buffer.len() {
-        let suffix_index = suffix_array_buffer[suffix_array_index];
-
-        if suffix_index == NONE_VALUE || suffix_index == 0 || is_s_type[suffix_index - 1] {
-            continue;
-        }
-
-        let induced_suffix_first_char = text[suffix_index - 1];
-        let induced_suffix_bucket_start_index =
-            &mut bucket_indices_buffer[induced_suffix_first_char.rank()];
-
-        suffix_array_buffer[*induced_suffix_bucket_start_index] = suffix_index - 1;
-        *induced_suffix_bucket_start_index += 1;
-    }
+    induce_range_left_to_right(
+        0..suffix_array_buffer.len(),
+        suffix_array_buffer,
+        bucket_indices_buffer,
+        is_s_type,
+        text,
+    );
 
     // ---------- RIGHT TO LEFT SCAN ----------
     write_bucket_end_indices_into_buffer(bucket_start_indices, bucket_indices_buffer, text.len());
@@ -87,27 +75,15 @@ pub fn induce_to_finalize_suffix_array<C: Character>(
     // ---------- LEFT TO RIGHT SCAN ----------
     bucket_indices_buffer.copy_from_slice(bucket_start_indices);
 
-    // virtual sentinel induction, it would normally be at first position of the suffix array
-    let last_suffix_index = text.len() - 1;
-    let last_suffix_char = text[last_suffix_index];
-    let last_suffix_bucket_start_index = &mut bucket_indices_buffer[last_suffix_char.rank()];
-    suffix_array_buffer[*last_suffix_bucket_start_index] = last_suffix_index;
-    *last_suffix_bucket_start_index += 1;
+    induce_from_virtual_sentinel(suffix_array_buffer, bucket_indices_buffer, text);
 
-    for suffix_array_index in 0..suffix_array_buffer.len() {
-        let suffix_index = suffix_array_buffer[suffix_array_index];
-
-        if suffix_index == NONE_VALUE || suffix_index == 0 || is_s_type[suffix_index - 1] {
-            continue;
-        }
-
-        let induced_suffix_first_char = text[suffix_index - 1];
-        let induced_suffix_bucket_start_index =
-            &mut bucket_indices_buffer[induced_suffix_first_char.rank()];
-
-        suffix_array_buffer[*induced_suffix_bucket_start_index] = suffix_index - 1;
-        *induced_suffix_bucket_start_index += 1;
-    }
+    induce_range_left_to_right(
+        0..suffix_array_buffer.len(),
+        suffix_array_buffer,
+        bucket_indices_buffer,
+        is_s_type,
+        text,
+    );
 
     // ---------- RIGHT TO LEFT SCAN ----------
     write_bucket_end_indices_into_buffer(bucket_start_indices, bucket_indices_buffer, text.len());
@@ -134,4 +110,40 @@ pub fn induce_to_finalize_suffix_array<C: Character>(
 
     // on the right to left scan, the sentinel does not induce anything,
     // because the char before it is always L-type
+}
+
+// the virtual sentinel would normally be at first position of the suffix array
+fn induce_from_virtual_sentinel<C: Character>(
+    suffix_array_buffer: &mut [usize],
+    bucket_indices_buffer: &mut [usize],
+    text: &[C],
+) {
+    let last_suffix_index = text.len() - 1;
+    let last_suffix_char = text[last_suffix_index];
+    let last_suffix_bucket_start_index = &mut bucket_indices_buffer[last_suffix_char.rank()];
+    suffix_array_buffer[*last_suffix_bucket_start_index] = last_suffix_index;
+    *last_suffix_bucket_start_index += 1;
+}
+
+fn induce_range_left_to_right<C: Character>(
+    index_range: impl Iterator<Item = usize>,
+    suffix_array_buffer: &mut [usize],
+    bucket_indices_buffer: &mut [usize],
+    is_s_type: &BitSlice,
+    text: &[C],
+) {
+    for suffix_array_index in index_range {
+        let suffix_index = suffix_array_buffer[suffix_array_index];
+
+        if suffix_index == NONE_VALUE || suffix_index == 0 || is_s_type[suffix_index - 1] {
+            continue;
+        }
+
+        let induced_suffix_first_char = text[suffix_index - 1];
+        let induced_suffix_bucket_start_index =
+            &mut bucket_indices_buffer[induced_suffix_first_char.rank()];
+
+        suffix_array_buffer[*induced_suffix_bucket_start_index] = suffix_index - 1;
+        *induced_suffix_bucket_start_index += 1;
+    }
 }
