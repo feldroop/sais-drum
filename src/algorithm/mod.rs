@@ -6,9 +6,9 @@ mod inducing;
 
 use crate::Character;
 
-use bitvec::prelude::*;
-
 use std::cmp::{self, Ordering};
+
+use bitvec::prelude::*;
 
 // the text must always be smaller than this value
 pub(crate) const NONE_VALUE: usize = usize::MAX;
@@ -58,7 +58,7 @@ pub fn suffix_array_induced_sort<C: Character>(
         text.len(),
     );
 
-    let num_lms_chars = place_text_order_lms_indices_into_buckets(
+    let num_lms_chars = buckets::place_text_order_lms_indices_into_buckets(
         suffix_array_buffer,
         bucket_indices_working_buffer,
         &is_s_type,
@@ -93,8 +93,7 @@ pub fn suffix_array_induced_sort<C: Character>(
     } else {
         reduced_text_suffix_array_buffer.fill(NONE_VALUE);
 
-        let larger_vacant_buffer =
-            buckets::choose_larger_vacant_buffer(vacant_buffer1, vacant_buffer2);
+        let larger_vacant_buffer = choose_larger_vacant_buffer(vacant_buffer1, vacant_buffer2);
 
         suffix_array_induced_sort(
             reduced_text,
@@ -112,7 +111,7 @@ pub fn suffix_array_induced_sort<C: Character>(
         backtransformation_table,
     );
 
-    place_sorted_lms_indices_into_buckets(
+    buckets::place_sorted_lms_indices_into_buckets(
         suffix_array_buffer,
         num_lms_chars,
         bucket_start_indices,
@@ -154,79 +153,6 @@ fn scan_for_counts_and_s_l_types<C: Character>(text: &[C], char_counts: &mut [us
     }
 
     is_s_type
-}
-
-// returns number of lms chars, without sentinel
-fn place_text_order_lms_indices_into_buckets<C: Character>(
-    suffix_array_buffer: &mut [usize],
-    bucket_end_indices: &mut [usize],
-    is_s_type: &BitSlice,
-    text: &[C],
-) -> usize {
-    let mut num_lms_chars = 0;
-
-    for (text_index, char) in text.iter().enumerate().skip(1) {
-        if !is_lms_type(text_index, is_s_type) {
-            continue;
-        }
-
-        num_lms_chars += 1;
-
-        let bucket_end_index = &mut bucket_end_indices[char.rank()];
-
-        suffix_array_buffer[*bucket_end_index] = text_index;
-
-        // saturating sub used, because the last placement of the first bucket (index 0) otherwise might underflow
-        // (it is okay to keep zero, because it is never read again. might also just use underflowing function)
-        *bucket_end_index = bucket_end_index.saturating_sub(1);
-    }
-
-    num_lms_chars
-}
-
-// expects sorted LMS indices (i.e reduced text suffix array) at the front of suffix_array_buffer
-fn place_sorted_lms_indices_into_buckets<C: Character>(
-    suffix_array_buffer: &mut [usize],
-    num_lms_chars: usize,
-    bucket_start_indices: &[usize],
-    bucket_indices_buffer: &mut [usize],
-    text: &[C],
-) {
-    buckets::write_bucket_end_indices_into_buffer(
-        bucket_start_indices,
-        bucket_indices_buffer,
-        text.len(),
-    );
-
-    // this works, because the sorted LMS indices are sorted, have the same order in the full
-    // suffix_array_buffer as they have before (the sorted order!), i.e. we won't override
-    // the part of the buffer we are iteraring through
-    for index_of_sorted_lms_indices in (0..num_lms_chars).rev() {
-        let lms_char_index = suffix_array_buffer[index_of_sorted_lms_indices];
-        let lms_char = text[lms_char_index];
-        let bucket_end_index = &mut bucket_indices_buffer[lms_char.rank()];
-
-        suffix_array_buffer[*bucket_end_index] = lms_char_index;
-
-        // wrapping sub used, because the last placement of the first bucket (index 0) might underflow
-        *bucket_end_index = bucket_end_index.wrapping_sub(1);
-    }
-
-    // fill the rest of the array with NONE_VALUE
-    // TODO maybe this could be implemented more efficiently by also doing it in the above loop
-    for (&bucket_start_index, &mut bucket_end_index_after_lms_placement) in
-        bucket_start_indices.iter().zip(bucket_indices_buffer)
-    {
-        // special case for the first bucket where a wrapping underflow might have happened
-        if bucket_end_index_after_lms_placement == WRAPPING_ZERO_DECREMENT_RESULT
-            || bucket_end_index_after_lms_placement < bucket_start_index
-        {
-            continue;
-        }
-
-        suffix_array_buffer[bucket_start_index..=bucket_end_index_after_lms_placement]
-            .fill(NONE_VALUE);
-    }
 }
 
 // reduced text is written to the end of the suffix array buffer
@@ -387,5 +313,18 @@ fn lms_substrings_are_unequal<C: Character>(
             // substrings are unequal, because one of them contains the unique sentinel
             return true;
         }
+    }
+}
+
+fn choose_larger_vacant_buffer<'a>(
+    vacant_buffer1: Option<&'a mut [usize]>,
+    vacant_buffer2: &'a mut [usize],
+) -> &'a mut [usize] {
+    if let Some(vacant_buffer1) = vacant_buffer1 {
+        cmp::max_by(vacant_buffer1, vacant_buffer2, |buf1, buf2| {
+            buf1.len().cmp(&buf2.len())
+        })
+    } else {
+        vacant_buffer2
     }
 }

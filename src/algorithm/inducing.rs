@@ -1,6 +1,4 @@
-use super::buckets::{
-    iter_bucket_borders, iter_bucket_borders_rev, write_bucket_end_indices_into_buffer,
-};
+use super::buckets;
 use super::is_lms_type;
 use crate::{Character, NONE_VALUE};
 
@@ -18,7 +16,7 @@ pub fn induce_to_sort_lms_substrings<C: Character>(
 
     induce_from_virtual_sentinel(suffix_array_buffer, bucket_indices_buffer, text);
 
-    for (start, end) in iter_bucket_borders(bucket_start_indices, text.len()) {
+    for (start, end) in buckets::iter_bucket_borders(bucket_start_indices, text.len()) {
         induce_range_left_to_right(
             start..end,
             suffix_array_buffer,
@@ -28,10 +26,14 @@ pub fn induce_to_sort_lms_substrings<C: Character>(
         );
     }
 
-    write_bucket_end_indices_into_buffer(bucket_start_indices, bucket_indices_buffer, text.len());
+    buckets::write_bucket_end_indices_into_buffer(
+        bucket_start_indices,
+        bucket_indices_buffer,
+        text.len(),
+    );
 
     let mut write_index = suffix_array_buffer.len() - 1;
-    for (start, end) in iter_bucket_borders_rev(bucket_start_indices, text.len()) {
+    for (start, end) in buckets::iter_bucket_borders_rev(bucket_start_indices, text.len()) {
         induce_range_right_to_left_and_write_lms_indices_to_end(
             start..end,
             suffix_array_buffer,
@@ -57,7 +59,7 @@ pub fn induce_to_finalize_suffix_array<C: Character>(
 
     induce_from_virtual_sentinel(suffix_array_buffer, bucket_indices_buffer, text);
 
-    for (start, end) in iter_bucket_borders(bucket_start_indices, text.len()) {
+    for (start, end) in buckets::iter_bucket_borders(bucket_start_indices, text.len()) {
         induce_range_left_to_right(
             start..end,
             suffix_array_buffer,
@@ -67,9 +69,13 @@ pub fn induce_to_finalize_suffix_array<C: Character>(
         );
     }
 
-    write_bucket_end_indices_into_buffer(bucket_start_indices, bucket_indices_buffer, text.len());
+    buckets::write_bucket_end_indices_into_buffer(
+        bucket_start_indices,
+        bucket_indices_buffer,
+        text.len(),
+    );
 
-    for (start, end) in iter_bucket_borders_rev(bucket_start_indices, text.len()) {
+    for (start, end) in buckets::iter_bucket_borders_rev(bucket_start_indices, text.len()) {
         induce_range_right_to_left(
             start..end,
             suffix_array_buffer,
