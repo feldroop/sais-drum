@@ -1,4 +1,4 @@
-use super::{is_lms_type, write_bucket_end_indices_into_buffer};
+use super::{is_lms_type, iter_bucket_borders, write_bucket_end_indices_into_buffer};
 use crate::{Character, NONE_VALUE};
 use bitvec::slice::BitSlice;
 
@@ -15,13 +15,15 @@ pub fn induce_to_sort_lms_substrings<C: Character>(
 
     induce_from_virtual_sentinel(suffix_array_buffer, bucket_indices_buffer, text);
 
-    induce_range_left_to_right(
-        0..suffix_array_buffer.len(),
-        suffix_array_buffer,
-        bucket_indices_buffer,
-        is_s_type,
-        text,
-    );
+    for (start, end) in iter_bucket_borders(bucket_start_indices, text.len()) {
+        induce_range_left_to_right(
+            start..end,
+            suffix_array_buffer,
+            bucket_indices_buffer,
+            is_s_type,
+            text,
+        );
+    }
 
     // ---------- RIGHT TO LEFT SCAN ----------
     write_bucket_end_indices_into_buffer(bucket_start_indices, bucket_indices_buffer, text.len());

@@ -7,7 +7,10 @@ use crate::Character;
 
 use bitvec::prelude::*;
 
-use std::cmp::{self, Ordering};
+use std::{
+    cmp::{self, Ordering},
+    iter,
+};
 
 // the text must always be smaller than this value
 pub(crate) const NONE_VALUE: usize = usize::MAX;
@@ -354,17 +357,20 @@ fn write_bucket_end_indices_into_buffer(
     bucket_indices_buffer: &mut [usize],
     text_len: usize,
 ) {
-    let alphabet_size = bucket_start_indices.len();
-    for (bucket_end_index, next_bucket_start_index) in bucket_indices_buffer[..alphabet_size - 1]
-        .iter_mut()
-        .zip(&bucket_start_indices[1..])
+    for (bucket_end_index, bucket_buffer_position) in
+        iter_bucket_end_indices(bucket_start_indices, text_len).zip(bucket_indices_buffer)
     {
-        *bucket_end_index = next_bucket_start_index.wrapping_sub(1);
+        *bucket_buffer_position = bucket_end_index;
     }
+}
 
+fn iter_bucket_end_indices(
+    bucket_start_indices: &[usize],
+    text_len: usize,
+) -> impl Iterator<Item = usize> {
     // edge case for when the last character does not appear in the text
     let num_buckets = bucket_start_indices.len();
-    *bucket_indices_buffer.last_mut().unwrap() = if text_len == 1
+    let last_bucket_end_index = if text_len == 1
         || num_buckets == 1
         || bucket_start_indices[num_buckets - 1] != bucket_start_indices[num_buckets - 2]
     {
@@ -372,6 +378,27 @@ fn write_bucket_end_indices_into_buffer(
     } else {
         text_len - 2
     };
+
+    bucket_start_indices[1..]
+        .iter()
+        .map(|next_bucket_start_index| next_bucket_start_index.wrapping_sub(1))
+        .chain(iter::once(last_bucket_end_index))
+}
+
+// iterates over the borders of the buckets in the form of [start, one_behind_end)
+fn iter_bucket_borders(
+    bucket_start_indices: &[usize],
+    text_len: usize,
+) -> impl Iterator<Item = (usize, usize)> {
+    let next_bucket_start_indices = bucket_start_indices[1..]
+        .iter()
+        .copied()
+        .chain(iter::once(text_len));
+
+    bucket_start_indices
+        .iter()
+        .copied()
+        .zip(next_bucket_start_indices)
 }
 
 fn choose_larger_vacant_buffer<'a>(
