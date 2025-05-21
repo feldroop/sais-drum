@@ -181,7 +181,9 @@ fn create_reduced_text<C: Character>(
         let curr_lms_substring_index =
             sorted_lms_substring_indices[index_of_sorted_lms_substring_indices];
 
-        // TODO write comment on why this is sound
+        // This transformation allows to only use a buffer of half the text size when placing the lexicographical
+        // names into a buffer. It is sound because there cannot be LMS chars are directly neighboring positions
+        // of the text and therefore, shifting to the right by one cannot lead to a collision of indices.
         let placement_index = curr_lms_substring_index >> 1;
 
         reduced_text_placement_buffer[placement_index] = current_name;
