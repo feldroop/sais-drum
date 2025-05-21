@@ -73,20 +73,17 @@ pub fn suffix_array_induced_sort<C: Character>(
         text,
     );
 
-    // move sorted lms indices to front of the buffer
-    let (rest, lms_indices) =
-        suffix_array_buffer.split_at_mut(suffix_array_buffer.len() - num_lms_chars);
-    rest[..num_lms_chars].copy_from_slice(lms_indices);
+    let (front, _, lms_indices) =
+        split_off_same_front_and_back_mut(suffix_array_buffer, num_lms_chars);
+    front.copy_from_slice(lms_indices);
 
     let num_different_names =
-        create_reduced_text(num_lms_chars, suffix_array_buffer, &is_s_type, text);
-
-    let (rest, reduced_text) =
-        suffix_array_buffer.split_at_mut(suffix_array_buffer.len() - num_lms_chars);
+        create_reduced_text(num_lms_chars, suffix_array_buffer, &text_metadata, text);
 
     // put reduced suffix array buffer at the end of the buffer instead of the middle,
     // this make the implementation later a bit simpler (when placing sorted LMS indices into buckets)
-    let (reduced_text_suffix_array_buffer, vacant_buffer2) = rest.split_at_mut(num_lms_chars);
+    let (reduced_text_suffix_array_buffer, vacant_buffer2, reduced_text) =
+        split_off_same_front_and_back_mut(suffix_array_buffer, num_lms_chars);
 
     if num_different_names == num_lms_chars {
         directly_construct_suffix_array(reduced_text, reduced_text_suffix_array_buffer);
@@ -169,14 +166,11 @@ fn create_reduced_text<C: Character>(
         return 0;
     }
 
-    let (rest_of_suffix_array_buffer, reduced_text_placement_buffer) =
-        suffix_array_buffer.split_at_mut(text.len() / 2);
-
+    let (sorted_lms_substring_indices, _, reduced_text_placement_buffer) =
+        split_off_front_and_back_mut(suffix_array_buffer, num_lms_chars, text.len().div_ceil(2));
     reduced_text_placement_buffer.fill(NONE_VALUE);
 
-    let sorted_lms_substring_indices = &mut rest_of_suffix_array_buffer[..num_lms_chars];
     let mut current_name = 0;
-
     for index_of_sorted_lms_substring_indices in 0..sorted_lms_substring_indices.len() - 1 {
         let curr_lms_substring_index =
             sorted_lms_substring_indices[index_of_sorted_lms_substring_indices];
@@ -329,4 +323,21 @@ fn choose_larger_vacant_buffer<'a>(
     } else {
         vacant_buffer2
     }
+}
+
+fn split_off_front_and_back_mut<T>(
+    slice: &mut [T],
+    front_offset: usize,
+    back_offset: usize,
+) -> (&mut [T], &mut [T], &mut [T]) {
+    let (front, rest) = slice.split_at_mut(front_offset);
+    let (mid, back) = rest.split_at_mut(rest.len() - back_offset);
+    (front, mid, back)
+}
+
+fn split_off_same_front_and_back_mut<T>(
+    slice: &mut [T],
+    offset: usize,
+) -> (&mut [T], &mut [T], &mut [T]) {
+    split_off_front_and_back_mut(slice, offset, offset)
 }
