@@ -3,7 +3,7 @@ mod algorithm;
 use num_traits::PrimInt;
 
 use algorithm::NONE_VALUE;
-
+use algorithm::buffer_management::BufferStack;
 pub trait Character: Sized + Copy + Ord {
     fn max_char() -> Self;
 
@@ -38,19 +38,28 @@ impl<C: Character> SaisBuilder<C> {
     }
 
     pub fn construct_suffix_array_inplace(&self, text: &[C], suffix_array_buffer: &mut [usize]) {
-        assert_eq!(text.len(), suffix_array_buffer.len());
-        suffix_array_buffer.fill(NONE_VALUE);
+        assert!(text.len() <= suffix_array_buffer.len());
+        suffix_array_buffer[..text.len()].fill(NONE_VALUE);
 
-        algorithm::suffix_array_induced_sort(text, self.get_max_char(), suffix_array_buffer, None);
+        let mut extra_buffer = BufferStack::new();
+
+        algorithm::suffix_array_induced_sort(
+            text,
+            self.get_max_char(),
+            suffix_array_buffer,
+            &mut extra_buffer,
+        );
     }
 
     pub fn construct_suffix_array(&self, text: &[C]) -> Vec<usize> {
-        let mut suffix_array_buffer = vec![algorithm::NONE_VALUE; text.len()];
+        let mut suffix_array_buffer = vec![NONE_VALUE; text.len()];
+        let mut extra_buffer = BufferStack::new();
+
         algorithm::suffix_array_induced_sort(
             text,
             self.get_max_char(),
             &mut suffix_array_buffer,
-            None,
+            &mut extra_buffer,
         );
 
         suffix_array_buffer

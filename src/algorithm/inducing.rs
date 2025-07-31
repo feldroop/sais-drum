@@ -1,5 +1,5 @@
 use super::buckets;
-use super::is_lms_type;
+use super::text_analysis::TextMetadata;
 use crate::{Character, NONE_VALUE};
 
 use bitvec::slice::BitSlice;
@@ -8,27 +8,27 @@ use bitvec::slice::BitSlice;
 pub fn induce_to_sort_lms_substrings<C: Character>(
     suffix_array_buffer: &mut [usize],
     bucket_start_indices: &[usize],
-    bucket_indices_buffer: &mut [usize],
-    is_s_type: &BitSlice,
+    working_bucket_indices_buffer: &mut [usize],
+    text_metadata: &TextMetadata,
     text: &[C],
 ) {
-    bucket_indices_buffer.copy_from_slice(bucket_start_indices);
+    working_bucket_indices_buffer.copy_from_slice(bucket_start_indices);
 
-    induce_from_virtual_sentinel(suffix_array_buffer, bucket_indices_buffer, text);
+    induce_from_virtual_sentinel(suffix_array_buffer, working_bucket_indices_buffer, text);
 
     for (start, end) in buckets::iter_bucket_borders(bucket_start_indices, text.len()) {
         induce_range_left_to_right(
             start..end,
             suffix_array_buffer,
-            bucket_indices_buffer,
-            is_s_type,
+            working_bucket_indices_buffer,
+            &text_metadata.is_s_type,
             text,
         );
     }
 
     buckets::write_bucket_end_indices_into_buffer(
         bucket_start_indices,
-        bucket_indices_buffer,
+        working_bucket_indices_buffer,
         text.len(),
     );
 
@@ -37,8 +37,8 @@ pub fn induce_to_sort_lms_substrings<C: Character>(
         induce_range_right_to_left_and_write_lms_indices_to_end(
             start..end,
             suffix_array_buffer,
-            bucket_indices_buffer,
-            is_s_type,
+            working_bucket_indices_buffer,
+            text_metadata,
             text,
             &mut write_index,
         );
@@ -51,27 +51,27 @@ pub fn induce_to_sort_lms_substrings<C: Character>(
 pub fn induce_to_finalize_suffix_array<C: Character>(
     suffix_array_buffer: &mut [usize],
     bucket_start_indices: &[usize],
-    bucket_indices_buffer: &mut [usize],
-    is_s_type: &BitSlice,
+    working_bucket_indices_buffer: &mut [usize],
+    text_metadata: &TextMetadata,
     text: &[C],
 ) {
-    bucket_indices_buffer.copy_from_slice(bucket_start_indices);
+    working_bucket_indices_buffer.copy_from_slice(bucket_start_indices);
 
-    induce_from_virtual_sentinel(suffix_array_buffer, bucket_indices_buffer, text);
+    induce_from_virtual_sentinel(suffix_array_buffer, working_bucket_indices_buffer, text);
 
     for (start, end) in buckets::iter_bucket_borders(bucket_start_indices, text.len()) {
         induce_range_left_to_right(
             start..end,
             suffix_array_buffer,
-            bucket_indices_buffer,
-            is_s_type,
+            working_bucket_indices_buffer,
+            &text_metadata.is_s_type,
             text,
         );
     }
 
     buckets::write_bucket_end_indices_into_buffer(
         bucket_start_indices,
-        bucket_indices_buffer,
+        working_bucket_indices_buffer,
         text.len(),
     );
 
@@ -79,8 +79,8 @@ pub fn induce_to_finalize_suffix_array<C: Character>(
         induce_range_right_to_left(
             start..end,
             suffix_array_buffer,
-            bucket_indices_buffer,
-            is_s_type,
+            working_bucket_indices_buffer,
+            &text_metadata.is_s_type,
             text,
         );
     }
@@ -92,14 +92,14 @@ pub fn induce_to_finalize_suffix_array<C: Character>(
 // the virtual sentinel would normally be at first position of the suffix array
 fn induce_from_virtual_sentinel<C: Character>(
     suffix_array_buffer: &mut [usize],
-    bucket_indices_buffer: &mut [usize],
+    working_bucket_indices_buffer: &mut [usize],
     text: &[C],
 ) {
     let last_suffix_index = text.len() - 1;
     induce_l_type(
         last_suffix_index,
         suffix_array_buffer,
-        bucket_indices_buffer,
+        working_bucket_indices_buffer,
         text,
     );
 }
@@ -107,7 +107,7 @@ fn induce_from_virtual_sentinel<C: Character>(
 fn induce_range_left_to_right<C: Character>(
     index_range: impl Iterator<Item = usize>,
     suffix_array_buffer: &mut [usize],
-    bucket_indices_buffer: &mut [usize],
+    working_bucket_indices_buffer: &mut [usize],
     is_s_type: &BitSlice,
     text: &[C],
 ) {
@@ -121,7 +121,7 @@ fn induce_range_left_to_right<C: Character>(
         induce_l_type(
             suffix_index - 1,
             suffix_array_buffer,
-            bucket_indices_buffer,
+            working_bucket_indices_buffer,
             text,
         );
     }
@@ -131,7 +131,7 @@ fn induce_range_left_to_right<C: Character>(
 fn induce_range_right_to_left<C: Character>(
     index_range: impl DoubleEndedIterator<Item = usize>,
     suffix_array_buffer: &mut [usize],
-    bucket_indices_buffer: &mut [usize],
+    working_bucket_indices_buffer: &mut [usize],
     is_s_type: &BitSlice,
     text: &[C],
 ) {
@@ -147,7 +147,7 @@ fn induce_range_right_to_left<C: Character>(
         induce_s_type(
             suffix_index - 1,
             suffix_array_buffer,
-            bucket_indices_buffer,
+            working_bucket_indices_buffer,
             text,
         );
     }
@@ -158,7 +158,7 @@ fn induce_range_right_to_left_and_write_lms_indices_to_end<C: Character>(
     index_range: impl DoubleEndedIterator<Item = usize>,
     suffix_array_buffer: &mut [usize],
     bucket_indices_buffer: &mut [usize],
-    is_s_type: &BitSlice,
+    text_metadata: &TextMetadata,
     text: &[C],
     write_index: &mut usize,
 ) {
@@ -174,13 +174,13 @@ fn induce_range_right_to_left_and_write_lms_indices_to_end<C: Character>(
         // the LMS suffixes only induce L-type suffixes, which we are not interested in
         // instead, we prepare for creation of reduced text by moving all of the
         // LMS indices to the back of the array (now sorted by LMS substrings)
-        if is_lms_type(suffix_index, is_s_type) {
+        if text_metadata.is_lms_type(suffix_index) {
             suffix_array_buffer[*write_index] = suffix_index;
             *write_index -= 1;
             continue;
         }
 
-        if !is_s_type[suffix_index - 1] {
+        if !text_metadata.is_s_type[suffix_index - 1] {
             continue;
         }
 
@@ -196,12 +196,12 @@ fn induce_range_right_to_left_and_write_lms_indices_to_end<C: Character>(
 fn induce_l_type<C: Character>(
     target_suffix_index: usize,
     suffix_array_buffer: &mut [usize],
-    bucket_indices_buffer: &mut [usize],
+    working_bucket_indices_buffer: &mut [usize],
     text: &[C],
 ) {
     let induced_suffix_first_char = text[target_suffix_index];
     let induced_suffix_bucket_start_index =
-        &mut bucket_indices_buffer[induced_suffix_first_char.rank()];
+        &mut working_bucket_indices_buffer[induced_suffix_first_char.rank()];
 
     suffix_array_buffer[*induced_suffix_bucket_start_index] = target_suffix_index;
     *induced_suffix_bucket_start_index += 1;
@@ -210,12 +210,12 @@ fn induce_l_type<C: Character>(
 fn induce_s_type<C: Character>(
     target_suffix_index: usize,
     suffix_array_buffer: &mut [usize],
-    bucket_indices_buffer: &mut [usize],
+    working_bucket_indices_buffer: &mut [usize],
     text: &[C],
 ) {
     let induced_suffix_first_char = text[target_suffix_index];
     let induced_suffix_bucket_end_index =
-        &mut bucket_indices_buffer[induced_suffix_first_char.rank()];
+        &mut working_bucket_indices_buffer[induced_suffix_first_char.rank()];
 
     suffix_array_buffer[*induced_suffix_bucket_end_index] = target_suffix_index;
 

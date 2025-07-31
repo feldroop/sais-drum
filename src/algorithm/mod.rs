@@ -2,13 +2,17 @@
 // mod tests;
 
 mod buckets;
+pub mod buffer_management;
 mod inducing;
+mod text_analysis;
+mod util;
 
 use crate::Character;
+use buffer_management::{BufferConfig, BufferRequestMode, BufferStack, Buffers};
 
-use std::cmp::{self, Ordering};
+use std::cmp;
 
-use bitvec::prelude::*;
+use text_analysis::TextMetadata;
 
 // the text must always be smaller than this value
 pub(crate) const NONE_VALUE: usize = usize::MAX;
@@ -16,140 +20,189 @@ const WRAPPING_ZERO_DECREMENT_RESULT: usize = usize::MAX;
 
 // TODO SaisConfig for configuration of this algorithm that is not the public API
 
-// expects suffix array buffer to be filled with EMPTY_VALUE and of the same length as text
+// enum AlphabetSize {
+//     Small,
+//     Medium,
+//     Large,
+// }
+
+// impl AlphabetSize {
+//     fn from_num_chars(num_chars: usize) -> Self {
+//         // TODO benchmark and optimize good values for these constants
+//         if num_chars <= 256 {
+//             Self::Small
+//         } else if num_chars <= 256 * 256 {
+//             Self::Medium
+//         } else {
+//             Self::Large
+//         }
+//     }
+// }
+
+// expects the main buffer to be of at least the same length as text
+// and the values at 0..text.len() of main_buffer to be NONE_VALUE
 pub fn suffix_array_induced_sort<C: Character>(
     text: &[C],
     max_char: C,
-    suffix_array_buffer: &mut [usize],
-    extra_buffer: Option<&mut [usize]>,
+    main_buffer: &mut [usize],
+    extra_buffers: &mut BufferStack,
 ) {
     if text.is_empty() {
         return;
     }
 
-    // this buffer will contain the bucket_start_indices after being initialized with counts
-    // if extra_buffer is sufficient, this will actually stay empty
-    let mut bucket_indices_buffer1 = Vec::new();
+    let num_buckets = max_char.rank() + 1;
+    let buffer_config = BufferConfig::calculate(text.len(), main_buffer.len(), num_buckets);
 
-    let (char_counts, remaining_extra_buffer) = reuse_extra_buffer_or_allocate_owned(
-        &mut bucket_indices_buffer1,
-        extra_buffer,
-        max_char.rank() + 1,
+    let Buffers {
+        remaining_main_buffer_without_persistent_buffers,
+        // persistent means the buffer is kept during recursion, while the working buffer is reused
+        // the s-type buffer is also persistent
+        is_s_type_buffer,
+        persistent_bucket_start_indices_buffer,
+        working_bucket_indices_buffer,
+    } = buffer_management::instantiate_or_recover_buffers(
+        buffer_config,
+        main_buffer,
+        extra_buffers,
+        num_buckets,
+        BufferRequestMode::Instatiate,
     );
+
+    // if the working buffer is allocated in the surplus main buffer, the value returned is None.
+    // Then, this split needs to happen in this function to allow reobtaining the remaining main
+    // buffer without persistent buffers later to use it fully in the recursion
+    let (final_remaining_main_buffer, working_bucket_indices_buffer) =
+        if buffer_config.working_bucket_buffer_in_main_buffer {
+            remaining_main_buffer_without_persistent_buffers
+                .split_at_mut(remaining_main_buffer_without_persistent_buffers.len() - num_buckets)
+        } else {
+            (
+                &mut remaining_main_buffer_without_persistent_buffers[..],
+                working_bucket_indices_buffer.unwrap(),
+            )
+        };
+
+    let suffix_array_buffer = &mut final_remaining_main_buffer[..text.len()];
 
     // TODO maybe skip this scan in recursion
-    let is_s_type = scan_for_counts_and_s_l_types(text, char_counts);
-
-    let bucket_start_indices = char_counts;
-    buckets::counts_into_bucket_start_indices(bucket_start_indices);
-
-    // varies between end and start indices, and is overwritten in LMS index placement and induction
-    let mut bucket_indices_buffer2 = Vec::new();
-
-    let (bucket_indices_working_buffer, vacant_buffer1) = reuse_extra_buffer_or_allocate_owned(
-        &mut bucket_indices_buffer2,
-        remaining_extra_buffer,
-        max_char.rank() + 1,
+    let text_metadata = text_analysis::scan_for_counts_and_s_l_types(
+        text,
+        persistent_bucket_start_indices_buffer,
+        is_s_type_buffer,
     );
-
-    buckets::write_bucket_end_indices_into_buffer(
-        bucket_start_indices,
-        bucket_indices_working_buffer,
-        text.len(),
-    );
+    buckets::counts_into_bucket_start_indices(persistent_bucket_start_indices_buffer);
 
     let num_lms_chars = buckets::place_text_order_lms_indices_into_buckets(
         suffix_array_buffer,
-        bucket_indices_working_buffer,
-        &is_s_type,
+        persistent_bucket_start_indices_buffer,
+        working_bucket_indices_buffer,
         text,
+        &text_metadata,
     );
 
     inducing::induce_to_sort_lms_substrings(
         suffix_array_buffer,
-        bucket_start_indices,
-        bucket_indices_working_buffer,
-        &is_s_type,
+        persistent_bucket_start_indices_buffer,
+        working_bucket_indices_buffer,
+        &text_metadata,
         text,
     );
 
     let (front, _, lms_indices) =
-        split_off_same_front_and_back_mut(suffix_array_buffer, num_lms_chars);
+        util::split_off_same_front_and_back_mut(suffix_array_buffer, num_lms_chars);
+    // TODO maybe in the future this will be a step that gathers the scattered lms indices to the front
     front.copy_from_slice(lms_indices);
 
-    let num_different_names =
-        create_reduced_text(num_lms_chars, suffix_array_buffer, &text_metadata, text);
+    let num_different_names = create_reduced_text(
+        num_lms_chars,
+        remaining_main_buffer_without_persistent_buffers,
+        &text_metadata,
+        text,
+    );
 
-    // put reduced suffix array buffer at the end of the buffer instead of the middle,
-    // this make the implementation later a bit simpler (when placing sorted LMS indices into buckets)
-    let (reduced_text_suffix_array_buffer, vacant_buffer2, reduced_text) =
-        split_off_same_front_and_back_mut(suffix_array_buffer, num_lms_chars);
+    // text_metadata needs to be destructed, because it might borrow an extra buffer
+    let (_, first_char_rank) = text_metadata.into_parts();
+
+    let (main_buffer_for_recursion, reduced_text) =
+        remaining_main_buffer_without_persistent_buffers
+            .split_at_mut(remaining_main_buffer_without_persistent_buffers.len() - num_lms_chars);
 
     if num_different_names == num_lms_chars {
-        directly_construct_suffix_array(reduced_text, reduced_text_suffix_array_buffer);
+        directly_construct_suffix_array(reduced_text, main_buffer_for_recursion);
     } else {
-        reduced_text_suffix_array_buffer.fill(NONE_VALUE);
-
-        let larger_vacant_buffer = choose_larger_vacant_buffer(vacant_buffer1, vacant_buffer2);
+        main_buffer_for_recursion[..num_lms_chars].fill(NONE_VALUE);
 
         suffix_array_induced_sort(
             reduced_text,
             num_different_names - 1,
-            reduced_text_suffix_array_buffer,
-            Some(larger_vacant_buffer),
+            main_buffer_for_recursion,
+            extra_buffers,
         );
     };
 
-    let backtransformation_table = reduced_text; // reuse this buffer
-    create_backtransformation_table(backtransformation_table, &is_s_type);
+    // here the whole buffer structure needs to be setup again to make sure everything
+    // except the persistent buffers can be mutably borrowoed in the recursion
+    let Buffers {
+        remaining_main_buffer_without_persistent_buffers,
+        is_s_type_buffer,
+        // persistent means it is kept during recursion
+        persistent_bucket_start_indices_buffer,
+        working_bucket_indices_buffer,
+    } = buffer_management::instantiate_or_recover_buffers(
+        buffer_config,
+        main_buffer,
+        extra_buffers,
+        num_buckets,
+        BufferRequestMode::Recover,
+    );
+
+    let text_metadata =
+        TextMetadata::from_filled_buffer_and_parts(is_s_type_buffer, first_char_rank);
+
+    // reuse reduced text buffer for backtransformation table
+    let (main_buffer_for_recursion, backtransformation_table) =
+        remaining_main_buffer_without_persistent_buffers
+            .split_at_mut(remaining_main_buffer_without_persistent_buffers.len() - num_lms_chars);
+
+    create_backtransformation_table(backtransformation_table, &text_metadata, text.len());
 
     backtransform_into_original_text_lms_indices(
-        reduced_text_suffix_array_buffer,
+        &mut main_buffer_for_recursion[..num_lms_chars],
         backtransformation_table,
     );
+
+    // setup working bucket indices buffer again, just like above
+    let (final_remaining_main_buffer, working_bucket_indices_buffer) =
+        if buffer_config.working_bucket_buffer_in_main_buffer {
+            remaining_main_buffer_without_persistent_buffers
+                .split_at_mut(remaining_main_buffer_without_persistent_buffers.len() - num_buckets)
+        } else {
+            (
+                remaining_main_buffer_without_persistent_buffers,
+                working_bucket_indices_buffer.unwrap(),
+            )
+        };
+
+    let suffix_array_buffer = &mut final_remaining_main_buffer[..text.len()];
 
     buckets::place_sorted_lms_indices_into_buckets(
         suffix_array_buffer,
         num_lms_chars,
-        bucket_start_indices,
-        bucket_indices_working_buffer,
+        persistent_bucket_start_indices_buffer,
+        working_bucket_indices_buffer,
         text,
     );
 
     inducing::induce_to_finalize_suffix_array(
         suffix_array_buffer,
-        bucket_start_indices,
-        bucket_indices_working_buffer,
-        &is_s_type,
+        persistent_bucket_start_indices_buffer,
+        working_bucket_indices_buffer,
+        &text_metadata,
         text,
     );
-}
 
-fn scan_for_counts_and_s_l_types<C: Character>(text: &[C], char_counts: &mut [usize]) -> BitVec {
-    let mut is_s_type = BitVec::repeat(true, text.len() + 1);
-
-    // sentinel is by definiton S-type and the smallest character
-    let mut current_char_compared_to_previous = Ordering::Greater;
-
-    for (text_index, char) in text.iter().enumerate().rev() {
-        char_counts[char.rank()] += 1;
-
-        let current_char_is_s_type = match current_char_compared_to_previous {
-            Ordering::Less => true,
-            Ordering::Equal => is_s_type[text_index + 1],
-            Ordering::Greater => false,
-        };
-
-        is_s_type.set(text_index, current_char_is_s_type);
-
-        if text_index == 0 {
-            break;
-        }
-
-        current_char_compared_to_previous = text[text_index - 1].cmp(&text[text_index])
-    }
-
-    is_s_type
+    buffer_management::clean_up_extra_buffers(buffer_config, extra_buffers);
 }
 
 // reduced text is written to the end of the suffix array buffer
@@ -158,8 +211,8 @@ fn scan_for_counts_and_s_l_types<C: Character>(text: &[C], char_counts: &mut [us
 // returns number of different names in the text
 fn create_reduced_text<C: Character>(
     num_lms_chars: usize,
-    suffix_array_buffer: &mut [usize],
-    is_s_type: &BitSlice,
+    remaining_main_buffer_without_persistent_buffers: &mut [usize],
+    text_metadata: &TextMetadata,
     text: &[C],
 ) -> usize {
     if num_lms_chars == 0 {
@@ -167,7 +220,11 @@ fn create_reduced_text<C: Character>(
     }
 
     let (sorted_lms_substring_indices, _, reduced_text_placement_buffer) =
-        split_off_front_and_back_mut(suffix_array_buffer, num_lms_chars, text.len().div_ceil(2));
+        util::split_off_front_and_back_mut(
+            remaining_main_buffer_without_persistent_buffers,
+            num_lms_chars,
+            text.len().div_ceil(2),
+        );
     reduced_text_placement_buffer.fill(NONE_VALUE);
 
     let mut current_name = 0;
@@ -188,7 +245,7 @@ fn create_reduced_text<C: Character>(
         if lms_substrings_are_unequal(
             curr_lms_substring_index,
             next_lms_substring_index,
-            is_s_type,
+            text_metadata,
             text,
         ) {
             current_name += 1;
@@ -221,11 +278,15 @@ fn directly_construct_suffix_array(
     }
 }
 
-fn create_backtransformation_table(backtransformation_table: &mut [usize], is_s_type: &BitSlice) {
+fn create_backtransformation_table(
+    backtransformation_table: &mut [usize],
+    text_metadata: &TextMetadata,
+    text_len: usize,
+) {
     let mut write_index = 0;
 
-    for text_index in 1..is_s_type.len() - 1 {
-        if is_lms_type(text_index, is_s_type) {
+    for text_index in 1..text_len - 1 {
+        if text_metadata.is_lms_type(text_index) {
             backtransformation_table[write_index] = text_index;
             write_index += 1;
         }
@@ -241,34 +302,12 @@ fn backtransform_into_original_text_lms_indices(
     }
 }
 
-// assumes index > 0
-#[inline]
-fn is_lms_type(index: usize, is_s_type: &BitSlice) -> bool {
-    is_s_type[index] && !is_s_type[index - 1]
-}
-
-// returns (a,b) where a is a buffer of length num_buckets with all values set to 0 and b maybe another buffer
-fn reuse_extra_buffer_or_allocate_owned<'a>(
-    owned_buffer: &'a mut Vec<usize>,
-    extra_buffer: Option<&'a mut [usize]>,
-    num_buckets: usize,
-) -> (&'a mut [usize], Option<&'a mut [usize]>) {
-    if extra_buffer.is_some() && extra_buffer.as_ref().unwrap().len() >= num_buckets {
-        let (buffer, rest) = extra_buffer.unwrap().split_at_mut(num_buckets);
-        buffer.fill(0);
-        return (buffer, Some(rest));
-    }
-
-    owned_buffer.resize(num_buckets, 0);
-    (owned_buffer, extra_buffer)
-}
-
 // this assumes, that the two given indices are different. otherwise it might return true
 // in some edge cases, when first_lms_substring_index == second_lms_substring_index
 fn lms_substrings_are_unequal<C: Character>(
     first_lms_substring_index: usize,
     second_lms_substring_index: usize,
-    is_s_type: &BitSlice,
+    text_metadata: &TextMetadata,
     text: &[C],
 ) -> bool {
     let mut smaller_lms_substring_index =
@@ -295,8 +334,8 @@ fn lms_substrings_are_unequal<C: Character>(
             return true;
         }
 
-        let first_substring_is_over = is_lms_type(smaller_lms_substring_index, is_s_type);
-        let second_substring_is_over = is_lms_type(larger_lms_substring_index, is_s_type);
+        let first_substring_is_over = text_metadata.is_lms_type(smaller_lms_substring_index);
+        let second_substring_is_over = text_metadata.is_lms_type(larger_lms_substring_index);
 
         if first_substring_is_over || second_substring_is_over {
             return first_substring_is_over != second_substring_is_over;
@@ -310,34 +349,4 @@ fn lms_substrings_are_unequal<C: Character>(
             return true;
         }
     }
-}
-
-fn choose_larger_vacant_buffer<'a>(
-    vacant_buffer1: Option<&'a mut [usize]>,
-    vacant_buffer2: &'a mut [usize],
-) -> &'a mut [usize] {
-    if let Some(vacant_buffer1) = vacant_buffer1 {
-        cmp::max_by(vacant_buffer1, vacant_buffer2, |buf1, buf2| {
-            buf1.len().cmp(&buf2.len())
-        })
-    } else {
-        vacant_buffer2
-    }
-}
-
-fn split_off_front_and_back_mut<T>(
-    slice: &mut [T],
-    front_offset: usize,
-    back_offset: usize,
-) -> (&mut [T], &mut [T], &mut [T]) {
-    let (front, rest) = slice.split_at_mut(front_offset);
-    let (mid, back) = rest.split_at_mut(rest.len() - back_offset);
-    (front, mid, back)
-}
-
-fn split_off_same_front_and_back_mut<T>(
-    slice: &mut [T],
-    offset: usize,
-) -> (&mut [T], &mut [T], &mut [T]) {
-    split_off_front_and_back_mut(slice, offset, offset)
 }
