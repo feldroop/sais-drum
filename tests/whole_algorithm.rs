@@ -95,7 +95,33 @@ fn detrimental_text() {
     }
 
     let maybe_suffix_array = SaisBuilder::new().construct_suffix_array(&text);
-    assert!(is_suffix_array(&maybe_suffix_array, &text))
+    assert!(is_suffix_array(&maybe_suffix_array, &text));
+}
+
+#[test]
+fn failing_proptest_example1() {
+    // this example tests a rarely used code path in the buffer layout that lead to a bug at some point
+    // is this code path, only the persistent bucket buffer is stored inside the main buffer
+    let text = [
+        0u8, 0, 98, 0, 0, 128, 0, 0, 0, 58, 0, 127, 0, 0, 42, 0, 0, 89, 0, 0, 0, 0, 28, 0, 0, 0, 0,
+        74, 0, 0, 10, 0, 41, 0, 5, 0, 68, 0, 171, 0, 37, 0, 45, 0, 137, 0, 28, 0, 77, 0, 80, 0, 0,
+        0, 0, 0, 0, 18, 0, 0, 10, 0, 0, 16, 0, 72, 0, 0, 0, 15, 0, 0, 0, 0, 34, 0, 0, 0, 0, 0, 38,
+        0, 0, 40, 0, 0, 0, 112, 0, 0, 0, 96, 0, 0, 0, 0, 117, 0, 0, 59, 0, 0, 43, 0, 18, 0, 78, 0,
+        120, 0, 64, 0, 13, 0, 16, 0, 182, 0, 0, 0, 5, 0, 0, 18, 0, 0, 55, 0, 0, 95, 0, 60, 0, 90,
+        0, 55, 0, 7, 0, 55, 0, 16, 1, 77, 0, 111, 0, 7, 1, 70, 0, 0, 51, 0, 0, 0, 45, 0, 0, 0, 0,
+        25, 0, 0, 5, 0, 0, 0, 4, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 198, 0, 0, 69, 0, 97, 0, 0, 96, 0,
+        0, 0, 81, 0, 0, 93, 0, 0, 0, 58, 1, 0, 0, 2, 0, 0, 6, 0, 0, 0, 112, 1, 36, 0, 0, 40, 1, 0,
+        53, 0, 0, 0, 0, 71, 0, 15, 0, 0, 30, 0, 75, 0, 23, 0, 68, 1, 0, 174, 0, 49, 0, 37, 1, 125,
+        0, 202, 0, 28, 0, 0, 0, 0, 0, 119, 0, 0, 0, 50, 0, 14, 0, 0, 0, 67, 0, 0, 94, 0, 13, 1, 0,
+        2, 0, 102, 0, 0, 0, 109, 0, 75, 1, 0, 168, 0, 111, 1, 27, 0, 0, 0, 0, 0, 29, 0, 40, 0, 0,
+        0, 66, 0, 57, 0, 43, 0, 0, 53, 0, 127, 1, 0, 125, 0, 202, 1, 0, 99, 0, 100, 0, 0, 0, 78, 0,
+        36, 0, 0, 0, 15, 1, 0, 80, 1, 0, 0, 59, 1, 0, 30, 0, 0, 0, 143, 0, 0, 50, 0, 0, 0, 0, 0,
+        15, 0, 42, 0, 13, 1, 1, 0, 27, 0, 0, 34, 0, 0, 39, 0, 47, 0, 0, 71, 0, 76, 0, 0, 95, 1, 0,
+        0, 4, 0, 0, 114, 0, 1,
+    ];
+
+    let maybe_suffix_array = SaisBuilder::new().construct_suffix_array(&text);
+    assert!(is_suffix_array(&maybe_suffix_array, &text));
 }
 
 fn is_suffix_array<C: Character>(maybe_suffix_array: &[usize], text: &[C]) -> bool {

@@ -300,11 +300,18 @@ pub fn instantiate_or_recover_buffers<'e, 'm: 'e>(
                 .map(|x| Some(x))
         }
         (false, true, true) => {
-            is_s_type_buffer = Some(extra_buffers.push(buffer_config.is_s_type_buffer_size))
+            is_s_type_buffer = Some(
+                extra_buffers
+                    .push_or_peek(buffer_config.is_s_type_buffer_size, buffer_request_mode),
+            )
         }
         (false, true, false) => {
             [is_s_type_buffer, working_bucket_indices_buffer] = extra_buffers
-                .push_two(buffer_config.is_s_type_buffer_size, num_buckets)
+                .push_or_peek_two(
+                    buffer_config.is_s_type_buffer_size,
+                    num_buckets,
+                    buffer_request_mode,
+                )
                 .map(|x| Some(x))
         }
         (false, false, true) => panic!("Unexpected internal bug in buffer instantiation"),
