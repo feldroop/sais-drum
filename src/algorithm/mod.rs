@@ -60,7 +60,7 @@ pub fn suffix_array_induced_sort<C: Character>(
         // the s-type buffer is also persistent
         is_s_type_buffer,
         persistent_bucket_start_indices_buffer,
-        working_bucket_indices_buffer,
+        maybe_working_bucket_indices_buffer,
     } = buffer_management::instantiate_or_recover_buffers(
         buffer_config,
         main_buffer,
@@ -79,7 +79,7 @@ pub fn suffix_array_induced_sort<C: Character>(
         } else {
             (
                 &mut remaining_main_buffer_without_persistent_buffers[..],
-                working_bucket_indices_buffer.unwrap(),
+                maybe_working_bucket_indices_buffer.unwrap(),
             )
         };
 
@@ -144,13 +144,12 @@ pub fn suffix_array_induced_sort<C: Character>(
     };
 
     // here the whole buffer structure needs to be setup again to make sure everything
-    // except the persistent buffers can be mutably borrowoed in the recursion
+    // except the persistent buffers can be mutably borrowed and reused in the recursion
     let Buffers {
         remaining_main_buffer_without_persistent_buffers,
         is_s_type_buffer,
-        // persistent means it is kept during recursion
         persistent_bucket_start_indices_buffer,
-        working_bucket_indices_buffer,
+        maybe_working_bucket_indices_buffer,
     } = buffer_management::instantiate_or_recover_buffers(
         buffer_config,
         main_buffer,
@@ -182,7 +181,7 @@ pub fn suffix_array_induced_sort<C: Character>(
         } else {
             (
                 remaining_main_buffer_without_persistent_buffers,
-                working_bucket_indices_buffer.unwrap(),
+                maybe_working_bucket_indices_buffer.unwrap(),
             )
         };
 
@@ -273,10 +272,10 @@ fn create_reduced_text<C: Character>(
 // base case of recursion. this works, because the reduced text exclusively contains unique characters
 fn directly_construct_suffix_array(
     reduced_text: &mut [usize],
-    reduced_text_suffix_array_buffer: &mut [usize],
+    main_buffer_for_recursion: &mut [usize],
 ) {
     for (reduced_text_suffix_index, &reduced_text_char) in reduced_text.iter().enumerate() {
-        reduced_text_suffix_array_buffer[reduced_text_char] = reduced_text_suffix_index;
+        main_buffer_for_recursion[reduced_text_char] = reduced_text_suffix_index;
     }
 }
 

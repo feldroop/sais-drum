@@ -239,7 +239,7 @@ pub struct Buffers<'m, 'e> {
     pub remaining_main_buffer_without_persistent_buffers: &'m mut [usize],
     pub is_s_type_buffer: &'e mut [usize],
     pub persistent_bucket_start_indices_buffer: &'e mut [usize],
-    pub working_bucket_indices_buffer: Option<&'e mut [usize]>,
+    pub maybe_working_bucket_indices_buffer: Option<&'e mut [usize]>,
 }
 
 // if buffer request mode is instatiate, then returned is_s_type_buffer and

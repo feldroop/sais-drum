@@ -118,7 +118,7 @@ pub fn place_text_order_lms_indices_into_buckets<C: Character>(
     num_lms_chars
 }
 
-// expects sorted LMS indices (i.e reduced text suffix array) at the front of suffix_array_buffer
+// expects sorted LMS indices (i.e backtransformed reduced text suffix array) at the front of suffix_array_buffer
 pub fn place_sorted_lms_indices_into_buckets<C: Character>(
     suffix_array_buffer: &mut [usize],
     num_lms_chars: usize,
@@ -132,7 +132,7 @@ pub fn place_sorted_lms_indices_into_buckets<C: Character>(
         text.len(),
     );
 
-    // this works, because the sorted LMS indices are sorted, have the same order in the full
+    // this works, because the LMS indices are sorted, have the same order in the full
     // suffix_array_buffer as they have before (the sorted order!), i.e. we won't override
     // the part of the buffer we are iteraring through
     for index_of_sorted_lms_indices in (0..num_lms_chars).rev() {
