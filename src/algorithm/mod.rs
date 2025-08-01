@@ -128,6 +128,8 @@ pub fn suffix_array_induced_sort<C: Character>(
         remaining_main_buffer_without_persistent_buffers
             .split_at_mut(remaining_main_buffer_without_persistent_buffers.len() - num_lms_chars);
 
+    buffer_management::setup_for_recursion(buffer_config, extra_buffers);
+
     if num_different_names == num_lms_chars {
         directly_construct_suffix_array(reduced_text, main_buffer_for_recursion);
     } else {

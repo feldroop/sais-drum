@@ -280,6 +280,13 @@ pub fn instantiate_or_recover_buffers<'e, 'm: 'e>(
         persistent_bucket_start_indices_buffer = Some(buffer);
     }
 
+    // the buffer that was popped before recursion needs to be pushed again
+    if buffer_request_mode == BufferRequestMode::Recover
+        && !buffer_config.working_bucket_buffer_in_main_buffer
+    {
+        extra_buffers.push(num_buckets);
+    }
+
     match (
         buffer_config.is_s_type_buffer_in_main_buffer,
         buffer_config.persistent_bucket_buffer_in_main_buffer,
@@ -335,7 +342,13 @@ pub fn instantiate_or_recover_buffers<'e, 'm: 'e>(
         remaining_main_buffer_without_persistent_buffers: remaining_main_buffer,
         is_s_type_buffer: is_s_type_buffer.unwrap(),
         persistent_bucket_start_indices_buffer: persistent_bucket_start_indices_buffer.unwrap(),
-        working_bucket_indices_buffer,
+        maybe_working_bucket_indices_buffer: working_bucket_indices_buffer,
+    }
+}
+
+pub fn setup_for_recursion(buffer_config: BufferConfig, extra_buffers: &mut BufferStack) {
+    if !buffer_config.working_bucket_buffer_in_main_buffer {
+        extra_buffers.pop();
     }
 }
 
