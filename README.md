@@ -11,7 +11,7 @@ The algorithm is implemented and tested using [`proptest`](https://github.com/pr
 In the future, the following optimizations could be added:
 
 - Algorithmic improvements laid out in this paper:
-  
+
   > N. Timoshevskaya and W. -c. Feng: _SAIS-OPT: On the characterization and optimization of the SA-IS algorithm for suffix array construction_ (2014) DOI: [10.1109/ICCABS.2014.6863917](https://www.doi.org/10.1109/ICCABS.2014.6863917)
 
 - Multithreading, based on this paper:
@@ -19,5 +19,9 @@ In the future, the following optimizations could be added:
   > Lao, B., Nong, G., Chan, W.H. et al. : _Fast induced sorting suffixes on a multicore machine_ (2018) DOI: [10.1007/s11227-018-2395-5](https://doi.org/10.1007/s11227-018-2395-5)
 
 - Implementation techniques laid out by Ilya Grebnov in the README of libsais
-- General optimizations such writing vectorization-friendly code
+- General optimizations such as writing vectorization-friendly code
 - Some of my own ideas that leverage Rust-specific features such as the easy creation of generic code compared to C
+
+## Why drum?
+
+Who doesn't like drums? Also, it's a pretty funny wordplay in German.
