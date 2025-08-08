@@ -20,25 +20,6 @@ const WRAPPING_ZERO_DECREMENT_RESULT: usize = usize::MAX;
 
 // TODO SaisConfig for configuration of this algorithm that is not the public API
 
-// enum AlphabetSize {
-//     Small,
-//     Medium,
-//     Large,
-// }
-
-// impl AlphabetSize {
-//     fn from_num_chars(num_chars: usize) -> Self {
-//         // TODO benchmark and optimize good values for these constants
-//         if num_chars <= 256 {
-//             Self::Small
-//         } else if num_chars <= 256 * 256 {
-//             Self::Medium
-//         } else {
-//             Self::Large
-//         }
-//     }
-// }
-
 // expects the main buffer to be of at least the same length as text
 // and the values at 0..text.len() of main_buffer to be NONE_VALUE
 pub fn suffix_array_induced_sort<C: Character>(

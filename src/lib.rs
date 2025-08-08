@@ -4,6 +4,7 @@ use num_traits::PrimInt;
 
 use algorithm::NONE_VALUE;
 use algorithm::buffer_management::BufferStack;
+
 pub trait Character: Sized + Copy + Ord {
     fn max_char() -> Self;
 
