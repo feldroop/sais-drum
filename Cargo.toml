@@ -25,7 +25,3 @@ bench = false
 [[bench]]
 name = "whole_algorithm"
 harness = false
-
-[[bench]]
-name = "individual_steps"
-harness = false
