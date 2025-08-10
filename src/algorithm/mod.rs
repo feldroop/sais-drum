@@ -15,7 +15,7 @@ use std::cmp;
 use text_analysis::TextMetadata;
 
 // the text must always be smaller than this value
-pub(crate) const NONE_VALUE: usize = usize::MAX;
+pub const NONE_VALUE: usize = usize::MAX;
 const WRAPPING_ZERO_DECREMENT_RESULT: usize = usize::MAX;
 
 // TODO SaisConfig for configuration of this algorithm that is not the public API
