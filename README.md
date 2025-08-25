@@ -6,9 +6,9 @@ A Rust implementation of the Suffix Array Induced Sort (SAIS) algorithm for [suf
 
 ## State of the implementation
 
-The algorithm is implemented and tested using [`proptest`](https://github.com/proptest-rs/proptest), but not yet fully optimized. I highly recommend using (bindings to) `libsais` instead. Other Rust solutions include Amos Wenger's port of [`divsufsort`](https://github.com/fasterthanlime/stringsearch/tree/master/crates/divsufsort) and Andrew Gallant's [`suffix`](https://github.com/BurntSushi/suffix) crate.
+The algorithm is implemented and tested using [`proptest`](https://github.com/proptest-rs/proptest), but not yet fully optimized. I highly recommend using my [bindings](https://github.com/feldroop/libsais-rs) to `libsais` instead. Other Rust solutions include Amos Wenger's port of [`divsufsort`](https://github.com/fasterthanlime/stringsearch/tree/master/crates/divsufsort) and Andrew Gallant's [`suffix`](https://github.com/BurntSushi/suffix) crate.
 
-In the future, the following optimizations could be added:
+In the future, the following optimizations could be added (inspired by `libsais`):
 
 - Algorithmic improvements laid out in this paper:
 
