@@ -1,14 +1,14 @@
 # 🥁 SAIS-drum 🥁
 
-A Rust implementation of the Suffix Array Induced Sort (SAIS) algorithm for [suffix array](https://en.wikipedia.org/wiki/Suffix_array) construction. Inspired by Ilya Grebnov's [`libsais`](https://github.com/IlyaGrebnov/libsais) and based on the following paper:
+A Rust implementation of the Suffix Array Induced Sort (SAIS) algorithm for [suffix array](https://en.wikipedia.org/wiki/Suffix_array) construction. Inspired by Ilya Grebnov's [`libsais`] and based on the following paper:
 
 > G. Nong, S. Zhang and W. H. Chan: _Two Efficient Algorithms for Linear Time Suffix Array Construction_ (2011) DOI: [10.1109/TC.2010.188](https://www.doi.org/10.1109/TC.2010.188)
 
 ## State of the implementation
 
-The algorithm is implemented and tested using [`proptest`](https://github.com/proptest-rs/proptest), but not yet fully optimized. I highly recommend using my [bindings](https://github.com/feldroop/libsais-rs) to `libsais` instead. Other Rust solutions include Amos Wenger's port of [`divsufsort`](https://github.com/fasterthanlime/stringsearch/tree/master/crates/divsufsort) and Andrew Gallant's [`suffix`](https://github.com/BurntSushi/suffix) crate.
+The algorithm is implemented and tested using [`proptest`](https://github.com/proptest-rs/proptest), but not yet fully optimized. I highly recommend using my [bindings](https://github.com/feldroop/libsais-rs) to [`libsais`] instead. Other Rust solutions include Amos Wenger's port of [`divsufsort`](https://github.com/fasterthanlime/stringsearch/tree/master/crates/divsufsort) and Andrew Gallant's [`suffix`](https://github.com/BurntSushi/suffix) crate.
 
-In the future, the following optimizations could be added (inspired by `libsais`):
+In the future, the following optimizations could be added (inspired by [`libsais`]):
 
 - Algorithmic improvements laid out in this paper:
 
@@ -25,3 +25,5 @@ In the future, the following optimizations could be added (inspired by `libsais`
 ## Why drum?
 
 Who doesn't like drums? Also, it's a pretty funny wordplay in German.
+
+[`libsais`]: https://github.com/IlyaGrebnov/libsais
