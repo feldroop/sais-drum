@@ -1,6 +1,21 @@
 [package]
 name = "sais_drum"
 version = "0.1.0"
+authors = ["Felix Leander Droop <info@felix-droop.de>"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/feldroop/sais-drum"
+documentation = "https://docs.rs/sais-drum"
+homepage = "https://github.com/feldroop/sais-drum"
+description = "An implementation of the SAIS algorithm for suffix array construction"
+categories = [
+    "science::bioinformatics",
+    "science::bioinformatics::sequence-analysis",
+    "text-processing",
+    "algorithms",
+    "data-structures",
+]
+keywords = ["saca", "suffix-array", "suffixarray", "bioinformatics", "bio"]
 edition = "2024"
 
 [dependencies]
