@@ -1,8 +1,11 @@
 mod algorithm;
 
-use num_traits::PrimInt;
+use std::marker::PhantomData;
 
-use algorithm::NONE_VALUE;
+use bitvec::store::BitStore;
+use num::Integer;
+use num_traits::{AsPrimitive, NumCast, PrimInt, SaturatingSub, WrappingSub};
+
 use algorithm::buffer_management::BufferStack;
 
 pub trait Character: Sized + Copy + Ord {
@@ -21,26 +24,40 @@ impl<P: PrimInt> Character for P {
     }
 }
 
-pub struct SaisBuilder<C> {
-    max_char: Option<C>,
+pub trait IndexStorage:
+    PrimInt + BitStore + AsPrimitive<usize> + WrappingSub + SaturatingSub + Integer
+{
 }
 
-impl<C: Character> SaisBuilder<C> {
+impl IndexStorage for u8 {}
+impl IndexStorage for u16 {}
+impl IndexStorage for u32 {}
+impl IndexStorage for u64 {}
+impl IndexStorage for usize {}
+
+pub struct SaisBuilder<C = u8, I = usize> {
+    max_char: Option<C>,
+    _marker: PhantomData<I>,
+}
+
+impl<C: Character, I: IndexStorage> SaisBuilder<C, I> {
     pub fn new() -> Self {
-        Self { max_char: None }
+        Self {
+            max_char: None,
+            _marker: PhantomData,
+        }
     }
 
     // if I ever remove bounds checks, this would become unsafe (then add checks and an unchecked method)
-    // TODO should this be part of the public API?
     pub fn with_max_char(&mut self, max_char: C) -> &mut Self {
-        assert!(max_char.rank() < NONE_VALUE);
+        assert!(max_char.rank() < <usize as NumCast>::from(I::max_value()).unwrap());
         self.max_char = Some(max_char);
         self
     }
 
-    pub fn construct_suffix_array_inplace(&self, text: &[C], suffix_array_buffer: &mut [usize]) {
+    pub fn construct_suffix_array_inplace(&self, text: &[C], suffix_array_buffer: &mut [I]) {
         assert!(text.len() <= suffix_array_buffer.len());
-        suffix_array_buffer[..text.len()].fill(NONE_VALUE);
+        suffix_array_buffer[..text.len()].fill(I::max_value());
 
         let mut extra_buffer = BufferStack::new();
 
@@ -52,8 +69,8 @@ impl<C: Character> SaisBuilder<C> {
         );
     }
 
-    pub fn construct_suffix_array(&self, text: &[C]) -> Vec<usize> {
-        let mut suffix_array_buffer = vec![NONE_VALUE; text.len()];
+    pub fn construct_suffix_array(&self, text: &[C]) -> Vec<I> {
+        let mut suffix_array_buffer = vec![I::max_value(); text.len()];
         let mut extra_buffer = BufferStack::new();
 
         algorithm::suffix_array_induced_sort(
@@ -70,14 +87,16 @@ impl<C: Character> SaisBuilder<C> {
         let max_char = self.max_char.unwrap_or(C::max_char());
 
         if max_char.rank() > u16::MAX as usize {
-            todo!("for large alphabets, create a threshold where the text is scanned for max_char");
+            unimplemented!(
+                "for large alphabets, create a threshold where the text is scanned for max_char"
+            );
         }
 
         max_char
     }
 }
 
-impl<C: Character> Default for SaisBuilder<C> {
+impl<C: Character, I: IndexStorage> Default for SaisBuilder<C, I> {
     fn default() -> Self {
         Self::new()
     }

@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 bitvec = "1"
 num-traits = "0.2.19"
+num = "0.4"
 
 [dev-dependencies]
 proptest = "1.6.0"

@@ -1,4 +1,5 @@
 use super::util;
+use crate::IndexStorage;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum BufferRequestMode {
@@ -7,12 +8,12 @@ pub enum BufferRequestMode {
 }
 
 /// A stack of buffers, backed by a single large buffer
-pub struct BufferStack {
-    full_buffer: Vec<usize>,
+pub struct BufferStack<I> {
+    full_buffer: Vec<I>,
     individual_buffer_lengths: Vec<usize>,
 }
 
-impl BufferStack {
+impl<I: IndexStorage> BufferStack<I> {
     pub fn new() -> Self {
         Self {
             full_buffer: Vec::new(),
@@ -20,22 +21,20 @@ impl BufferStack {
         }
     }
 
-    fn push(&mut self, new_buffer_length: usize) -> &mut [usize] {
+    fn push(&mut self, new_buffer_length: usize) -> &mut [I] {
         let old_len = self.full_buffer.len();
-        self.full_buffer.resize(old_len + new_buffer_length, 0);
+        self.full_buffer
+            .resize(old_len + new_buffer_length, I::zero());
         self.individual_buffer_lengths.push(new_buffer_length);
 
         &mut self.full_buffer[old_len..]
     }
 
-    fn push_two(
-        &mut self,
-        new_buffer_length1: usize,
-        new_buffer_length2: usize,
-    ) -> [&mut [usize]; 2] {
+    fn push_two(&mut self, new_buffer_length1: usize, new_buffer_length2: usize) -> [&mut [I]; 2] {
         let old_len = self.full_buffer.len();
         let total_new_length = new_buffer_length1 + new_buffer_length2;
-        self.full_buffer.resize(old_len + total_new_length, 0);
+        self.full_buffer
+            .resize(old_len + total_new_length, I::zero());
 
         self.individual_buffer_lengths.push(new_buffer_length1);
         self.individual_buffer_lengths.push(new_buffer_length2);
@@ -50,10 +49,11 @@ impl BufferStack {
         new_buffer_length1: usize,
         new_buffer_length2: usize,
         new_buffer_length3: usize,
-    ) -> [&mut [usize]; 3] {
+    ) -> [&mut [I]; 3] {
         let old_len = self.full_buffer.len();
         let total_new_length = new_buffer_length1 + new_buffer_length2 + new_buffer_length3;
-        self.full_buffer.resize(old_len + total_new_length, 0);
+        self.full_buffer
+            .resize(old_len + total_new_length, I::zero());
 
         self.individual_buffer_lengths.push(new_buffer_length1);
         self.individual_buffer_lengths.push(new_buffer_length2);
@@ -78,7 +78,7 @@ impl BufferStack {
         true
     }
 
-    fn peek(&mut self) -> &mut [usize] {
+    fn peek(&mut self) -> &mut [I] {
         assert!(self.individual_buffer_lengths.len() >= 1);
 
         let full_len = self.full_buffer.len();
@@ -87,7 +87,7 @@ impl BufferStack {
         &mut self.full_buffer[full_len - last_buffer_length..]
     }
 
-    fn peek_two(&mut self) -> [&mut [usize]; 2] {
+    fn peek_two(&mut self) -> [&mut [I]; 2] {
         let num_buffers = self.individual_buffer_lengths.len();
         assert!(num_buffers >= 2);
 
@@ -104,7 +104,7 @@ impl BufferStack {
         [second_last_buffer, last_buffer]
     }
 
-    fn peek_three(&mut self) -> [&mut [usize]; 3] {
+    fn peek_three(&mut self) -> [&mut [I]; 3] {
         let num_buffers = self.individual_buffer_lengths.len();
         assert!(num_buffers >= 3);
 
@@ -130,7 +130,7 @@ impl BufferStack {
         &mut self,
         new_buffer_length: usize,
         buffer_request_mode: BufferRequestMode,
-    ) -> &mut [usize] {
+    ) -> &mut [I] {
         match buffer_request_mode {
             BufferRequestMode::Instatiate => self.push(new_buffer_length),
             BufferRequestMode::Recover => self.peek(),
@@ -142,7 +142,7 @@ impl BufferStack {
         new_buffer_length1: usize,
         new_buffer_length2: usize,
         buffer_request_mode: BufferRequestMode,
-    ) -> [&mut [usize]; 2] {
+    ) -> [&mut [I]; 2] {
         match buffer_request_mode {
             BufferRequestMode::Instatiate => self.push_two(new_buffer_length1, new_buffer_length2),
             BufferRequestMode::Recover => self.peek_two(),
@@ -155,7 +155,7 @@ impl BufferStack {
         new_buffer_length2: usize,
         new_buffer_length3: usize,
         buffer_request_mode: BufferRequestMode,
-    ) -> [&mut [usize]; 3] {
+    ) -> [&mut [I]; 3] {
         match buffer_request_mode {
             BufferRequestMode::Instatiate => {
                 self.push_three(new_buffer_length1, new_buffer_length2, new_buffer_length3)
@@ -174,8 +174,8 @@ pub struct BufferConfig {
 }
 
 impl BufferConfig {
-    pub fn calculate(text_len: usize, main_buffer_len: usize, num_buckets: usize) -> Self {
-        let is_s_type_buffer_size = (text_len + 1).div_ceil(usize::BITS as usize);
+    pub fn calculate<I>(text_len: usize, main_buffer_len: usize, num_buckets: usize) -> Self {
+        let is_s_type_buffer_size = (text_len + 1).div_ceil((size_of::<I>() * 8) as usize);
         let is_s_type_buffer_is_larger = is_s_type_buffer_size > num_buckets;
 
         let mut buffer_config = BufferConfig {
@@ -235,22 +235,22 @@ impl BufferConfig {
     }
 }
 
-pub struct Buffers<'m, 'e> {
-    pub remaining_main_buffer_without_persistent_buffers: &'m mut [usize],
-    pub is_s_type_buffer: &'e mut [usize],
-    pub persistent_bucket_start_indices_buffer: &'e mut [usize],
-    pub maybe_working_bucket_indices_buffer: Option<&'e mut [usize]>,
+pub struct Buffers<'m, 'e, I> {
+    pub remaining_main_buffer_without_persistent_buffers: &'m mut [I],
+    pub is_s_type_buffer: &'e mut [I],
+    pub persistent_bucket_start_indices_buffer: &'e mut [I],
+    pub maybe_working_bucket_indices_buffer: Option<&'e mut [I]>,
 }
 
 // if buffer request mode is instatiate, then returned is_s_type_buffer and
 // persistent_bucket_start_indices_buffer are guarenteed to be filled with zeroes
-pub fn instantiate_or_recover_buffers<'e, 'm: 'e>(
+pub fn instantiate_or_recover_buffers<'e, 'm: 'e, I: IndexStorage>(
     buffer_config: BufferConfig,
-    main_buffer: &'m mut [usize],
-    extra_buffers: &'e mut BufferStack,
+    main_buffer: &'m mut [I],
+    extra_buffers: &'e mut BufferStack<I>,
     num_buckets: usize,
     buffer_request_mode: BufferRequestMode,
-) -> Buffers<'m, 'e> {
+) -> Buffers<'m, 'e, I> {
     let mut remaining_main_buffer = main_buffer;
     let mut is_s_type_buffer = None;
     let mut persistent_bucket_start_indices_buffer = None;
@@ -263,7 +263,7 @@ pub fn instantiate_or_recover_buffers<'e, 'm: 'e>(
         remaining_main_buffer = remaining;
 
         if buffer_request_mode == BufferRequestMode::Instatiate {
-            buffer.fill(0);
+            buffer.fill(I::zero());
         }
         is_s_type_buffer = Some(buffer);
     }
@@ -275,7 +275,7 @@ pub fn instantiate_or_recover_buffers<'e, 'm: 'e>(
         remaining_main_buffer = remaining;
 
         if buffer_request_mode == BufferRequestMode::Instatiate {
-            buffer.fill(0);
+            buffer.fill(I::zero());
         }
         persistent_bucket_start_indices_buffer = Some(buffer);
     }
@@ -346,13 +346,19 @@ pub fn instantiate_or_recover_buffers<'e, 'm: 'e>(
     }
 }
 
-pub fn setup_for_recursion(buffer_config: BufferConfig, extra_buffers: &mut BufferStack) {
+pub fn setup_for_recursion<I: IndexStorage>(
+    buffer_config: BufferConfig,
+    extra_buffers: &mut BufferStack<I>,
+) {
     if !buffer_config.working_bucket_buffer_in_main_buffer {
         extra_buffers.pop();
     }
 }
 
-pub fn clean_up_extra_buffers(buffer_config: BufferConfig, extra_buffers: &mut BufferStack) {
+pub fn clean_up_extra_buffers<I: IndexStorage>(
+    buffer_config: BufferConfig,
+    extra_buffers: &mut BufferStack<I>,
+) {
     for _ in 0..buffer_config.num_extra_buffers() {
         extra_buffers.pop();
     }
@@ -364,7 +370,7 @@ mod tests {
 
     #[test]
     fn test_buffer_stack() {
-        let mut buffers = BufferStack::new();
+        let mut buffers = BufferStack::<usize>::new();
 
         let buf1 = buffers.push(10);
         assert_eq!(buf1.len(), 10);
@@ -411,7 +417,8 @@ mod tests {
         let main_buffer_len = 30;
         let num_buckets = 8;
 
-        let buffer_config = BufferConfig::calculate(text_len, main_buffer_len, num_buckets);
+        let buffer_config =
+            BufferConfig::calculate::<usize>(text_len, main_buffer_len, num_buckets);
 
         let expected_buffer_config = BufferConfig {
             is_s_type_buffer_size: 1,
@@ -429,7 +436,8 @@ mod tests {
         let main_buffer_len = 36;
         let num_buckets = 8;
 
-        let buffer_config = BufferConfig::calculate(text_len, main_buffer_len, num_buckets);
+        let buffer_config =
+            BufferConfig::calculate::<usize>(text_len, main_buffer_len, num_buckets);
 
         let expected_buffer_config = BufferConfig {
             is_s_type_buffer_size: 1,

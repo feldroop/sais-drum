@@ -1,6 +1,6 @@
 use std::hint;
 
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use rand::{RngCore, SeedableRng};
 use sais_drum::SaisBuilder;
 
@@ -12,7 +12,7 @@ fn large_random_text_vs_divsufsort(c: &mut Criterion) {
 
     group.bench_with_input("sais-drum-large-random", &text, |b, text| {
         b.iter(|| {
-            let suffix_array = SaisBuilder::new().construct_suffix_array(text);
+            let suffix_array = SaisBuilder::<_>::new().construct_suffix_array(text);
             hint::black_box(suffix_array);
         })
     });

@@ -7,33 +7,33 @@ mod inducing;
 mod text_analysis;
 mod util;
 
-use crate::Character;
+use crate::{Character, IndexStorage};
 use buffer_management::{BufferConfig, BufferRequestMode, BufferStack, Buffers};
+use num_traits::NumCast;
 
 use std::cmp;
 
 use text_analysis::TextMetadata;
 
-// the text must always be smaller than this value
-pub const NONE_VALUE: usize = usize::MAX;
-const WRAPPING_ZERO_DECREMENT_RESULT: usize = usize::MAX;
-
 // TODO SaisConfig for configuration of this algorithm that is not the public API
 
 // expects the main buffer to be of at least the same length as text
 // and the values at 0..text.len() of main_buffer to be NONE_VALUE
-pub fn suffix_array_induced_sort<C: Character>(
+pub fn suffix_array_induced_sort<C: Character, I: IndexStorage>(
     text: &[C],
     max_char: C,
-    main_buffer: &mut [usize],
-    extra_buffers: &mut BufferStack,
+    main_buffer: &mut [I],
+    extra_buffers: &mut BufferStack<I>,
 ) {
+    assert!(text.len() < <usize as NumCast>::from(I::max_value()).unwrap());
+    assert!(text.len() < usize::MAX);
+
     if text.is_empty() {
         return;
     }
 
     let num_buckets = max_char.rank() + 1;
-    let buffer_config = BufferConfig::calculate(text.len(), main_buffer.len(), num_buckets);
+    let buffer_config = BufferConfig::calculate::<I>(text.len(), main_buffer.len(), num_buckets);
 
     let Buffers {
         remaining_main_buffer_without_persistent_buffers,
@@ -91,7 +91,7 @@ pub fn suffix_array_induced_sort<C: Character>(
     );
 
     let (front, _, lms_indices) =
-        util::split_off_same_front_and_back_mut(suffix_array_buffer, num_lms_chars);
+        util::split_off_same_front_and_back_mut(suffix_array_buffer, num_lms_chars.as_());
     // TODO maybe in the future this will be a step that gathers the scattered lms indices to the front
     front.copy_from_slice(lms_indices);
 
@@ -106,19 +106,20 @@ pub fn suffix_array_induced_sort<C: Character>(
     let (_, first_char_rank) = text_metadata.into_parts();
 
     let (main_buffer_for_recursion, reduced_text) =
-        remaining_main_buffer_without_persistent_buffers
-            .split_at_mut(remaining_main_buffer_without_persistent_buffers.len() - num_lms_chars);
+        remaining_main_buffer_without_persistent_buffers.split_at_mut(
+            remaining_main_buffer_without_persistent_buffers.len() - num_lms_chars.as_(),
+        );
 
     buffer_management::setup_for_recursion(buffer_config, extra_buffers);
 
     if num_different_names == num_lms_chars {
         directly_construct_suffix_array(reduced_text, main_buffer_for_recursion);
     } else {
-        main_buffer_for_recursion[..num_lms_chars].fill(NONE_VALUE);
+        main_buffer_for_recursion[..num_lms_chars.as_()].fill(I::max_value());
 
         suffix_array_induced_sort(
             reduced_text,
-            num_different_names - 1,
+            num_different_names - I::one(),
             main_buffer_for_recursion,
             extra_buffers,
         );
@@ -144,13 +145,14 @@ pub fn suffix_array_induced_sort<C: Character>(
 
     // reuse reduced text buffer for backtransformation table
     let (main_buffer_for_recursion, backtransformation_table) =
-        remaining_main_buffer_without_persistent_buffers
-            .split_at_mut(remaining_main_buffer_without_persistent_buffers.len() - num_lms_chars);
+        remaining_main_buffer_without_persistent_buffers.split_at_mut(
+            remaining_main_buffer_without_persistent_buffers.len() - num_lms_chars.as_(),
+        );
 
     create_backtransformation_table(backtransformation_table, &text_metadata, text.len());
 
     backtransform_into_original_text_lms_indices(
-        &mut main_buffer_for_recursion[..num_lms_chars],
+        &mut main_buffer_for_recursion[..num_lms_chars.as_()],
         backtransformation_table,
     );
 
@@ -191,25 +193,25 @@ pub fn suffix_array_induced_sort<C: Character>(
 // LMS indices at front of input suffix_array_buffer should be sorted according to
 // their LMS substrings (not necessarily according to their whole LMS suffixes)
 // returns number of different names in the text
-fn create_reduced_text<C: Character>(
-    num_lms_chars: usize,
-    remaining_main_buffer_without_persistent_buffers: &mut [usize],
-    text_metadata: &TextMetadata,
+fn create_reduced_text<C: Character, I: IndexStorage>(
+    num_lms_chars: I,
+    remaining_main_buffer_without_persistent_buffers: &mut [I],
+    text_metadata: &TextMetadata<I>,
     text: &[C],
-) -> usize {
-    if num_lms_chars == 0 {
-        return 0;
+) -> I {
+    if num_lms_chars == I::zero() {
+        return I::zero();
     }
 
     let (sorted_lms_substring_indices, _, reduced_text_placement_buffer) =
         util::split_off_front_and_back_mut(
             remaining_main_buffer_without_persistent_buffers,
-            num_lms_chars,
+            num_lms_chars.as_(),
             text.len().div_ceil(2),
         );
-    reduced_text_placement_buffer.fill(NONE_VALUE);
+    reduced_text_placement_buffer.fill(I::max_value());
 
-    let mut current_name = 0;
+    let mut current_name = I::zero();
     for index_of_sorted_lms_substring_indices in 0..sorted_lms_substring_indices.len() - 1 {
         let curr_lms_substring_index =
             sorted_lms_substring_indices[index_of_sorted_lms_substring_indices];
@@ -219,7 +221,7 @@ fn create_reduced_text<C: Character>(
         // of the text and therefore, shifting to the right by one cannot lead to a collision of indices.
         let placement_index = curr_lms_substring_index >> 1;
 
-        reduced_text_placement_buffer[placement_index] = current_name;
+        reduced_text_placement_buffer[placement_index.as_()] = current_name;
 
         let next_lms_substring_index =
             sorted_lms_substring_indices[index_of_sorted_lms_substring_indices + 1];
@@ -230,44 +232,45 @@ fn create_reduced_text<C: Character>(
             text_metadata,
             text,
         ) {
-            current_name += 1;
+            current_name = current_name + I::one();
         }
     }
 
     let last_placement_index = *sorted_lms_substring_indices.last().unwrap() >> 1;
-    reduced_text_placement_buffer[last_placement_index] = current_name;
+    reduced_text_placement_buffer[last_placement_index.as_()] = current_name;
 
     let mut write_index = reduced_text_placement_buffer.len() - 1;
     for read_index in (0..reduced_text_placement_buffer.len()).rev() {
         let maybe_lms_substring_name = reduced_text_placement_buffer[read_index];
 
-        if maybe_lms_substring_name != NONE_VALUE {
+        if maybe_lms_substring_name != I::max_value() {
             reduced_text_placement_buffer[write_index] = maybe_lms_substring_name;
             write_index -= 1;
         }
     }
 
-    current_name + 1
+    current_name + I::one()
 }
 
 // base case of recursion. this works, because the reduced text exclusively contains unique characters
-fn directly_construct_suffix_array(
-    reduced_text: &mut [usize],
-    main_buffer_for_recursion: &mut [usize],
+fn directly_construct_suffix_array<I: IndexStorage>(
+    reduced_text: &mut [I],
+    main_buffer_for_recursion: &mut [I],
 ) {
     for (reduced_text_suffix_index, &reduced_text_char) in reduced_text.iter().enumerate() {
-        main_buffer_for_recursion[reduced_text_char] = reduced_text_suffix_index;
+        main_buffer_for_recursion[reduced_text_char.as_()] =
+            <I as NumCast>::from(reduced_text_suffix_index).unwrap();
     }
 }
 
-fn create_backtransformation_table(
-    backtransformation_table: &mut [usize],
-    text_metadata: &TextMetadata,
+fn create_backtransformation_table<I: IndexStorage>(
+    backtransformation_table: &mut [I],
+    text_metadata: &TextMetadata<I>,
     text_len: usize,
 ) {
     let mut write_index = 0;
 
-    for text_index in 1..text_len - 1 {
+    for text_index in num::range(I::one(), <I as NumCast>::from(text_len - 1).unwrap()) {
         if text_metadata.is_lms_type(text_index) {
             backtransformation_table[write_index] = text_index;
             write_index += 1;
@@ -275,21 +278,21 @@ fn create_backtransformation_table(
     }
 }
 
-fn backtransform_into_original_text_lms_indices(
-    reduced_text_suffix_array_buffer: &mut [usize],
-    backtransformation_table: &[usize],
+fn backtransform_into_original_text_lms_indices<I: IndexStorage>(
+    reduced_text_suffix_array_buffer: &mut [I],
+    backtransformation_table: &[I],
 ) {
     for reduced_text_index in reduced_text_suffix_array_buffer {
-        *reduced_text_index = backtransformation_table[*reduced_text_index];
+        *reduced_text_index = backtransformation_table[reduced_text_index.as_()];
     }
 }
 
 // this assumes, that the two given indices are different. otherwise it might return true
 // in some edge cases, when first_lms_substring_index == second_lms_substring_index
-fn lms_substrings_are_unequal<C: Character>(
-    first_lms_substring_index: usize,
-    second_lms_substring_index: usize,
-    text_metadata: &TextMetadata,
+fn lms_substrings_are_unequal<C: Character, I: IndexStorage>(
+    first_lms_substring_index: I,
+    second_lms_substring_index: I,
+    text_metadata: &TextMetadata<I>,
     text: &[C],
 ) -> bool {
     let mut smaller_lms_substring_index =
@@ -297,14 +300,16 @@ fn lms_substrings_are_unequal<C: Character>(
     let mut larger_lms_substring_index =
         cmp::max(first_lms_substring_index, second_lms_substring_index);
 
-    if text[smaller_lms_substring_index] != text[larger_lms_substring_index] {
+    if text[smaller_lms_substring_index.as_()] != text[larger_lms_substring_index.as_()] {
         return true;
     }
 
+    let text_len = <I as NumCast>::from(text.len()).unwrap();
+
     // this is in bounds, because every lms substring has at least length 2 (not counting virtual sentinel),
     // except for the sentinel itself, but it is handled as a virtual character, so it does never appear here
-    smaller_lms_substring_index += 1;
-    larger_lms_substring_index += 1;
+    smaller_lms_substring_index = smaller_lms_substring_index + I::one();
+    larger_lms_substring_index = larger_lms_substring_index + I::one();
 
     // lms-substrings are defined as equal if their length, their S/L-types and characters all match
     // in this loop, we only check the characters until one of the strings ends, because if
@@ -312,7 +317,7 @@ fn lms_substrings_are_unequal<C: Character>(
     // the types might differ in the last iteration. that is why we check if both of the substrings are
     // terminated by an LMS-char at that positon and therefore are both S-type
     loop {
-        if text[smaller_lms_substring_index] != text[larger_lms_substring_index] {
+        if text[smaller_lms_substring_index.as_()] != text[larger_lms_substring_index.as_()] {
             return true;
         }
 
@@ -323,10 +328,10 @@ fn lms_substrings_are_unequal<C: Character>(
             return first_substring_is_over != second_substring_is_over;
         }
 
-        smaller_lms_substring_index += 1;
-        larger_lms_substring_index += 1;
+        smaller_lms_substring_index = smaller_lms_substring_index + I::one();
+        larger_lms_substring_index = larger_lms_substring_index + I::one();
 
-        if larger_lms_substring_index == text.len() {
+        if larger_lms_substring_index == text_len {
             // substrings are unequal, because one of them contains the unique sentinel
             return true;
         }
