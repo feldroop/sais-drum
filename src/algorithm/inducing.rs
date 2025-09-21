@@ -22,7 +22,7 @@ pub fn induce_to_sort_lms_substrings<C: Character, I: IndexStorage>(
             num::range(start, end),
             suffix_array_buffer,
             working_bucket_indices_buffer,
-            &text_metadata.is_s_type,
+            text_metadata.is_s_type,
             text,
         );
     }
@@ -65,7 +65,7 @@ pub fn induce_to_finalize_suffix_array<C: Character, I: IndexStorage>(
             num::range(start, end),
             suffix_array_buffer,
             working_bucket_indices_buffer,
-            &text_metadata.is_s_type,
+            text_metadata.is_s_type,
             text,
         );
     }
@@ -81,7 +81,7 @@ pub fn induce_to_finalize_suffix_array<C: Character, I: IndexStorage>(
             num::range(start, end),
             suffix_array_buffer,
             working_bucket_indices_buffer,
-            &text_metadata.is_s_type,
+            text_metadata.is_s_type,
             text,
         );
     }

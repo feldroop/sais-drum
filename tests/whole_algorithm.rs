@@ -125,9 +125,9 @@ fn failing_proptest_example1() {
 }
 
 fn construct_and_test_suffix_array<C: Character, I: IndexStorage>(text: &[C]) {
-    let suffix_array = SaisBuilder::<C, I>::new().construct_suffix_array(&text);
+    let suffix_array = SaisBuilder::<C, I>::new().construct_suffix_array(text);
 
-    assert!(is_suffix_array(&suffix_array, &text));
+    assert!(is_suffix_array(&suffix_array, text));
 }
 
 fn is_suffix_array<C: Character, I: IndexStorage>(maybe_suffix_array: &[I], text: &[C]) -> bool {

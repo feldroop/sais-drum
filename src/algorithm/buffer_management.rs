@@ -79,7 +79,7 @@ impl<I: IndexStorage> BufferStack<I> {
     }
 
     fn peek(&mut self) -> &mut [I] {
-        assert!(self.individual_buffer_lengths.len() >= 1);
+        assert!(!self.individual_buffer_lengths.is_empty());
 
         let full_len = self.full_buffer.len();
         let last_buffer_length = self.individual_buffer_lengths.last().unwrap();
@@ -175,7 +175,7 @@ pub struct BufferConfig {
 
 impl BufferConfig {
     pub fn calculate<I>(text_len: usize, main_buffer_len: usize, num_buckets: usize) -> Self {
-        let is_s_type_buffer_size = (text_len + 1).div_ceil((size_of::<I>() * 8) as usize);
+        let is_s_type_buffer_size = (text_len + 1).div_ceil(size_of::<I>() * 8);
         let is_s_type_buffer_is_larger = is_s_type_buffer_size > num_buckets;
 
         let mut buffer_config = BufferConfig {
@@ -304,7 +304,7 @@ pub fn instantiate_or_recover_buffers<'e, 'm: 'e, I: IndexStorage>(
                 working_bucket_indices_buffer,
             ] = extra_buffers
                 .push_or_peek_two(num_buckets, num_buckets, buffer_request_mode)
-                .map(|x| Some(x))
+                .map(Some)
         }
         (false, true, true) => {
             is_s_type_buffer = Some(
@@ -319,7 +319,7 @@ pub fn instantiate_or_recover_buffers<'e, 'm: 'e, I: IndexStorage>(
                     num_buckets,
                     buffer_request_mode,
                 )
-                .map(|x| Some(x))
+                .map(Some)
         }
         (false, false, true) => panic!("Unexpected internal bug in buffer instantiation"),
         (false, false, false) => {
@@ -334,7 +334,7 @@ pub fn instantiate_or_recover_buffers<'e, 'm: 'e, I: IndexStorage>(
                     num_buckets,
                     buffer_request_mode,
                 )
-                .map(|x| Some(x))
+                .map(Some)
         }
     }
 
