@@ -2,7 +2,7 @@
 
 [![Build Status](https://img.shields.io/github/actions/workflow/status/feldroop/sais-drum/rust.yml?style=flat-square&logo=github&label=CI)](https://github.com/feldroop/sais-drum/actions)
 [![Crates.io](https://img.shields.io/crates/v/sais-drum.svg?style=flat-square&logo=rust)](https://crates.io/crates/sais-drum)
-[![Documentation](https://img.shields.io/docsrs/sais-drum?style=flat-square&logo=rust)](https://docs.rs/sais_drum)
+[![Documentation](https://img.shields.io/docsrs/sais_drum?style=flat-square&logo=rust)](https://docs.rs/sais_drum)
 
 A Rust implementation of the Suffix Array Induced Sort (SAIS) algorithm for [suffix array](https://en.wikipedia.org/wiki/Suffix_array) construction. Inspired by Ilya Grebnov's [`libsais`] and based on the following paper:
 
